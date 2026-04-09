@@ -144,10 +144,110 @@ router.get('/surplus-aging', requireAuth, async (_req: Request, res: Response, n
   }
 });
 
+// GET /api/reports/accounts-receivable — what customers owe (unpaid invoices)
+router.get('/accounts-receivable', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await query(`
+      SELECT inv.id, inv.invoice_number, inv.invoice_date, inv.due_date, inv.total, inv.status,
+        c.name as customer_name, c.id as customer_id,
+        EXTRACT(DAY FROM NOW() - inv.invoice_date) as days_outstanding,
+        CASE
+          WHEN inv.due_date IS NULL OR inv.due_date >= CURRENT_DATE THEN 'current'
+          WHEN CURRENT_DATE - inv.due_date <= 30 THEN '1_30'
+          WHEN CURRENT_DATE - inv.due_date <= 60 THEN '31_60'
+          WHEN CURRENT_DATE - inv.due_date <= 90 THEN '61_90'
+          ELSE '90_plus'
+        END as aging_bucket
+      FROM invoices inv
+      JOIN customers c ON inv.customer_id = c.id
+      WHERE inv.status NOT IN ('paid', 'voided')
+      ORDER BY inv.due_date ASC NULLS LAST
+    `);
+
+    // Summary by customer
+    const summary = await query(`
+      SELECT c.id, c.name,
+        COUNT(inv.id) as invoice_count,
+        COALESCE(SUM(inv.total), 0) as total_owed,
+        COALESCE(SUM(CASE WHEN inv.due_date IS NULL OR inv.due_date >= CURRENT_DATE THEN inv.total ELSE 0 END), 0) as current_amount,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - inv.due_date BETWEEN 1 AND 30 THEN inv.total ELSE 0 END), 0) as days_1_30,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - inv.due_date BETWEEN 31 AND 60 THEN inv.total ELSE 0 END), 0) as days_31_60,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - inv.due_date BETWEEN 61 AND 90 THEN inv.total ELSE 0 END), 0) as days_61_90,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - inv.due_date > 90 THEN inv.total ELSE 0 END), 0) as days_90_plus
+      FROM invoices inv
+      JOIN customers c ON inv.customer_id = c.id
+      WHERE inv.status NOT IN ('paid', 'voided')
+      GROUP BY c.id, c.name
+      ORDER BY total_owed DESC
+    `);
+
+    const totals = await query(`
+      SELECT COALESCE(SUM(total), 0) as total_ar,
+        COUNT(*) as total_invoices,
+        COALESCE(SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE THEN total ELSE 0 END), 0) as total_overdue
+      FROM invoices WHERE status NOT IN ('paid', 'voided')
+    `);
+
+    res.json({ invoices: result.rows, by_customer: summary.rows, totals: totals.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/reports/accounts-payable — what we owe vendors (open POs)
+router.get('/accounts-payable', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await query(`
+      SELECT po.id, po.po_number, po.order_date, po.expected_date, po.total, po.status,
+        v.name as vendor_name, v.id as vendor_id,
+        EXTRACT(DAY FROM NOW() - po.order_date) as days_outstanding,
+        CASE
+          WHEN po.expected_date IS NULL OR po.expected_date >= CURRENT_DATE THEN 'current'
+          WHEN CURRENT_DATE - po.expected_date <= 30 THEN '1_30'
+          WHEN CURRENT_DATE - po.expected_date <= 60 THEN '31_60'
+          WHEN CURRENT_DATE - po.expected_date <= 90 THEN '61_90'
+          ELSE '90_plus'
+        END as aging_bucket
+      FROM purchase_orders po
+      JOIN vendors v ON po.vendor_id = v.id
+      WHERE po.status NOT IN ('received', 'cancelled')
+      ORDER BY po.order_date ASC
+    `);
+
+    // Summary by vendor
+    const summary = await query(`
+      SELECT v.id, v.name,
+        COUNT(po.id) as po_count,
+        COALESCE(SUM(po.total), 0) as total_owed,
+        COALESCE(SUM(CASE WHEN po.expected_date IS NULL OR po.expected_date >= CURRENT_DATE THEN po.total ELSE 0 END), 0) as current_amount,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - po.expected_date BETWEEN 1 AND 30 THEN po.total ELSE 0 END), 0) as days_1_30,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - po.expected_date BETWEEN 31 AND 60 THEN po.total ELSE 0 END), 0) as days_31_60,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - po.expected_date BETWEEN 61 AND 90 THEN po.total ELSE 0 END), 0) as days_61_90,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - po.expected_date > 90 THEN po.total ELSE 0 END), 0) as days_90_plus
+      FROM purchase_orders po
+      JOIN vendors v ON po.vendor_id = v.id
+      WHERE po.status NOT IN ('received', 'cancelled')
+      GROUP BY v.id, v.name
+      ORDER BY total_owed DESC
+    `);
+
+    const totals = await query(`
+      SELECT COALESCE(SUM(total), 0) as total_ap,
+        COUNT(*) as total_pos,
+        COALESCE(SUM(CASE WHEN expected_date IS NOT NULL AND expected_date < CURRENT_DATE THEN total ELSE 0 END), 0) as total_overdue
+      FROM purchase_orders WHERE status NOT IN ('received', 'cancelled')
+    `);
+
+    res.json({ purchase_orders: result.rows, by_vendor: summary.rows, totals: totals.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/reports/dashboard-stats — aggregated stats for dashboard
 router.get('/dashboard-stats', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const [items, lowStock, builds, pos, invoices, surplus, value] = await Promise.all([
+    const [items, lowStock, builds, pos, invoices, surplus, value, ar, ap] = await Promise.all([
       query("SELECT COUNT(*) as count FROM items WHERE is_active = true"),
       query(`SELECT COUNT(*) as count FROM (
         SELECT i.id FROM items i LEFT JOIN item_locations il ON il.item_id = i.id
@@ -160,6 +260,8 @@ router.get('/dashboard-stats', requireAuth, async (_req: Request, res: Response,
       query("SELECT COALESCE(SUM(qty_available * COALESCE(original_cost, 0)), 0) as value FROM surplus_pool WHERE is_active = true"),
       query(`SELECT COALESCE(SUM(il.qty_on_hand * i.cost_price), 0) as total
              FROM item_locations il JOIN items i ON il.item_id = i.id WHERE il.qty_on_hand > 0`),
+      query("SELECT COALESCE(SUM(total), 0) as total FROM invoices WHERE status NOT IN ('paid', 'voided')"),
+      query("SELECT COALESCE(SUM(total), 0) as total FROM purchase_orders WHERE status NOT IN ('received', 'cancelled')"),
     ]);
 
     res.json({
@@ -170,6 +272,8 @@ router.get('/dashboard-stats', requireAuth, async (_req: Request, res: Response,
       unpaid_invoices: parseInt(invoices.rows[0].count),
       surplus_value: parseFloat(surplus.rows[0].value),
       inventory_value: parseFloat(value.rows[0].total),
+      accounts_receivable: parseFloat(ar.rows[0].total),
+      accounts_payable: parseFloat(ap.rows[0].total),
     });
   } catch (err) {
     next(err);

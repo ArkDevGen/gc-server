@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
-import { BarChart3, AlertTriangle, DollarSign, Recycle, Hammer } from 'lucide-react';
+import { BarChart3, AlertTriangle, DollarSign, Recycle, Hammer, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 
-type ReportTab = 'inventory-value' | 'low-stock' | 'build-variance' | 'surplus-aging';
+type ReportTab = 'accounts-receivable' | 'accounts-payable' | 'inventory-value' | 'low-stock' | 'build-variance' | 'surplus-aging';
 
 export default function Reports() {
-  const [tab, setTab] = useState<ReportTab>('inventory-value');
+  const [tab, setTab] = useState<ReportTab>('accounts-receivable');
 
   const tabs: { key: ReportTab; label: string; icon: any }[] = [
+    { key: 'accounts-receivable', label: 'Accounts Receivable', icon: ArrowDownToLine },
+    { key: 'accounts-payable', label: 'Accounts Payable', icon: ArrowUpFromLine },
     { key: 'inventory-value', label: 'Inventory Value', icon: DollarSign },
     { key: 'low-stock', label: 'Low Stock', icon: AlertTriangle },
     { key: 'build-variance', label: 'Build Variance', icon: Hammer },
@@ -31,6 +33,8 @@ export default function Reports() {
         })}
       </div>
 
+      {tab === 'accounts-receivable' && <AccountsReceivableReport />}
+      {tab === 'accounts-payable' && <AccountsPayableReport />}
       {tab === 'inventory-value' && <InventoryValueReport />}
       {tab === 'low-stock' && <LowStockReport />}
       {tab === 'build-variance' && <BuildVarianceReport />}
@@ -265,4 +269,130 @@ function SurplusAgingReport() {
       </div>
     </div>
   );
+}
+
+const bucketLabels: Record<string, string> = {
+  current: 'Current', '1_30': '1-30 Days', '31_60': '31-60 Days', '61_90': '61-90 Days', '90_plus': '90+ Days',
+};
+const bucketColors: Record<string, string> = {
+  current: 'text-green-600', '1_30': 'text-amber-600', '31_60': 'text-orange-600', '61_90': 'text-red-500', '90_plus': 'text-red-700',
+};
+
+function AgingTable({ data, type }: { data: any; type: 'ar' | 'ap' }) {
+  const isAR = type === 'ar';
+  const rows = isAR ? data?.by_customer : data?.by_vendor;
+  const details = isAR ? data?.invoices : data?.purchase_orders;
+  const [view, setView] = useState<'summary' | 'detail'>('summary');
+
+  return (
+    <div className="space-y-4">
+      {data?.totals && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl border p-4">
+            <p className="text-sm text-gray-500">Total {isAR ? 'AR' : 'AP'}</p>
+            <p className={`text-2xl font-bold ${isAR ? 'text-emerald-600' : 'text-rose-600'}`}>
+              ${parseFloat(isAR ? data.totals.total_ar : data.totals.total_ap).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <p className="text-sm text-gray-500">Open {isAR ? 'Invoices' : 'POs'}</p>
+            <p className="text-2xl font-bold">{parseInt(isAR ? data.totals.total_invoices : data.totals.total_pos)}</p>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <p className="text-sm text-gray-500">Overdue</p>
+            <p className="text-2xl font-bold text-red-600">
+              ${parseFloat(data.totals.total_overdue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-1">
+        <button onClick={() => setView('summary')} className={`px-3 py-1.5 rounded text-sm font-medium ${view === 'summary' ? 'bg-gray-900 text-white' : 'bg-white border text-gray-600'}`}>
+          By {isAR ? 'Customer' : 'Vendor'}
+        </button>
+        <button onClick={() => setView('detail')} className={`px-3 py-1.5 rounded text-sm font-medium ${view === 'detail' ? 'bg-gray-900 text-white' : 'bg-white border text-gray-600'}`}>
+          All {isAR ? 'Invoices' : 'POs'}
+        </button>
+      </div>
+      <div className="bg-white rounded-xl border overflow-hidden">
+        {view === 'summary' ? (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{isAR ? 'Customer' : 'Vendor'}</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">#</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Current</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">1-30</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">31-60</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">61-90</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">90+</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!rows?.length ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No outstanding {isAR ? 'receivables' : 'payables'}</td></tr>
+              ) : rows.map((r: any) => (
+                <tr key={r.id} className="border-b last:border-0">
+                  <td className="px-4 py-3 font-medium">{r.name}</td>
+                  <td className="px-4 py-3 text-right">{r.invoice_count || r.po_count}</td>
+                  {['current_amount', 'days_1_30', 'days_31_60', 'days_61_90', 'days_90_plus'].map((col, i) => {
+                    const val = parseFloat(r[col]);
+                    const colors = ['text-green-600', 'text-amber-600', 'text-orange-600', 'text-red-500', 'text-red-700'];
+                    return <td key={col} className={`px-4 py-3 text-right font-mono ${colors[i]} ${i === 4 && val > 0 ? 'font-bold' : ''}`}>{val > 0 ? `$${val.toFixed(2)}` : '--'}</td>;
+                  })}
+                  <td className="px-4 py-3 text-right font-mono font-bold">${parseFloat(r.total_owed).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{isAR ? 'Invoice' : 'PO'} #</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{isAR ? 'Customer' : 'Vendor'}</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{isAR ? 'Due' : 'Expected'}</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Amount</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-600">Aging</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!details?.length ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No records</td></tr>
+              ) : details.map((d: any) => (
+                <tr key={d.id} className="border-b last:border-0">
+                  <td className="px-4 py-3 font-mono font-medium">{d.invoice_number || d.po_number}</td>
+                  <td className="px-4 py-3">{d.customer_name || d.vendor_name}</td>
+                  <td className="px-4 py-3 text-gray-500">{new Date(d.invoice_date || d.order_date).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-gray-500">{(d.due_date || d.expected_date) ? new Date(d.due_date || d.expected_date).toLocaleDateString() : '--'}</td>
+                  <td className="px-4 py-3 text-right font-mono font-bold">${parseFloat(d.total).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-center"><span className={`text-xs font-medium ${bucketColors[d.aging_bucket] || ''}`}>{bucketLabels[d.aging_bucket] || ''}</span></td>
+                  <td className="px-4 py-3 text-center"><span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 capitalize">{d.status.replace(/_/g, ' ')}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AccountsReceivableReport() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { api.get('/reports/accounts-receivable').then((res) => setData(res.data)).finally(() => setLoading(false)); }, []);
+  if (loading) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
+  return <AgingTable data={data} type="ar" />;
+}
+
+function AccountsPayableReport() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { api.get('/reports/accounts-payable').then((res) => setData(res.data)).finally(() => setLoading(false)); }, []);
+  if (loading) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
+  return <AgingTable data={data} type="ap" />;
 }

@@ -14,6 +14,8 @@ interface Stats {
   unpaid_invoices: number;
   surplus_value: number;
   inventory_value: number;
+  accounts_receivable: number;
+  accounts_payable: number;
 }
 
 export default function Dashboard() {
@@ -27,14 +29,18 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
+  const fmt = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
   const cards = [
     { label: 'Total Items', value: stats?.total_items ?? '--', icon: Package, color: 'bg-blue-500', link: '/inventory' },
     { label: 'Low Stock Alerts', value: stats?.low_stock_items ?? '--', icon: AlertTriangle, color: 'bg-amber-500', link: '/reports' },
     { label: 'Active Builds', value: stats?.active_builds ?? '--', icon: Hammer, color: 'bg-green-500', link: '/builds' },
     { label: 'Open POs', value: stats?.open_pos ?? '--', icon: ShoppingCart, color: 'bg-purple-500', link: '/purchase-orders' },
     { label: 'Unpaid Invoices', value: stats?.unpaid_invoices ?? '--', icon: Receipt, color: 'bg-red-500', link: '/invoices' },
-    { label: 'Inventory Value', value: stats ? `$${stats.inventory_value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '--', icon: DollarSign, color: 'bg-cyan-500', link: '/reports' },
-    { label: 'Surplus Value', value: stats ? `$${stats.surplus_value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '--', icon: Recycle, color: 'bg-amber-600', link: '/surplus' },
+    { label: 'Accounts Receivable', value: stats ? fmt(stats.accounts_receivable) : '--', icon: DollarSign, color: 'bg-emerald-500', link: '/reports' },
+    { label: 'Accounts Payable', value: stats ? fmt(stats.accounts_payable) : '--', icon: DollarSign, color: 'bg-rose-500', link: '/reports' },
+    { label: 'Inventory Value', value: stats ? fmt(stats.inventory_value) : '--', icon: DollarSign, color: 'bg-cyan-500', link: '/reports' },
+    { label: 'Surplus Value', value: stats ? fmt(stats.surplus_value) : '--', icon: Recycle, color: 'bg-amber-600', link: '/surplus' },
   ];
 
   return (
