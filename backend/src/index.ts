@@ -12,6 +12,8 @@ import invoicesRoutes from './routes/invoices.routes';
 import quotesRoutes from './routes/quotes.routes';
 import buildsRoutes from './routes/builds.routes';
 import surplusRoutes from './routes/surplus.routes';
+import templatesRoutes from './routes/templates.routes';
+import importRoutes from './routes/import.routes';
 
 const app = express();
 
@@ -34,6 +36,8 @@ app.use('/api/invoices', invoicesRoutes);
 app.use('/api/quotes', quotesRoutes);
 app.use('/api/builds', buildsRoutes);
 app.use('/api/surplus', surplusRoutes);
+app.use('/api/templates', templatesRoutes);
+app.use('/api/import', importRoutes);
 
 // Serve frontend in production
 if (env.NODE_ENV === 'production') {

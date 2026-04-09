@@ -272,4 +272,24 @@ router.post('/:id/convert-to-build', requireAuth, requireRole(UserRole.ADMIN, Us
   }
 );
 
+// GET /api/quotes/history/:customerId — quote history for a customer
+router.get('/history/:customerId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await query(
+      `SELECT q.id, q.quote_number, q.status, q.quote_date, q.total, q.margin_pct,
+       u.display_name as created_by_name,
+       (SELECT COUNT(*) FROM quote_lines WHERE quote_id = q.id) as line_count
+       FROM quotes q
+       JOIN users u ON q.created_by = u.id
+       WHERE q.customer_id = $1
+       ORDER BY q.created_at DESC
+       LIMIT 50`,
+      [req.params.customerId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

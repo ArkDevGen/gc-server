@@ -89,15 +89,37 @@ export default function Quotes() {
 function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [customers, setCustomers] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
   const [form, setForm] = useState({ customer_id: '', valid_until: '', notes: '' });
   const [lines, setLines] = useState<any[]>([{ item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0, is_surplus: false }]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [customerHistory, setCustomerHistory] = useState<any[]>([]);
 
   useEffect(() => {
-    Promise.all([api.get('/customers'), api.get('/items', { params: { limit: 100 } })])
-      .then(([c, i]) => { setCustomers(c.data); setItems(i.data.data); });
+    Promise.all([
+      api.get('/customers'),
+      api.get('/items', { params: { limit: 100 } }),
+      api.get('/templates'),
+    ]).then(([c, i, t]) => { setCustomers(c.data); setItems(i.data.data); setTemplates(t.data); });
   }, []);
+
+  // Load customer quote history when customer changes
+  useEffect(() => {
+    if (form.customer_id) {
+      api.get(`/quotes/history/${form.customer_id}`).then((res) => setCustomerHistory(res.data)).catch(() => {});
+    } else {
+      setCustomerHistory([]);
+    }
+  }, [form.customer_id]);
+
+  const loadTemplate = async (templateId: string) => {
+    if (!templateId) return;
+    try {
+      const res = await api.post(`/templates/${templateId}/create-quote`);
+      setLines(res.data.lines.map((l: any) => ({ ...l, item_id: l.item_id || '' })));
+    } catch (err) { console.error(err); }
+  };
 
   const addLine = () => setLines([...lines, { item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0, is_surplus: false }]);
 
@@ -140,6 +162,16 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>}
 
+          {/* Template Dropdown */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <label className="block text-sm font-medium text-blue-700 mb-1">Load from Template</label>
+            <select onChange={(e) => loadTemplate(e.target.value)}
+              className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white">
+              <option value="">Start from scratch...</option>
+              {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.line_count} items)</option>)}
+            </select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
@@ -155,6 +187,24 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 className="w-full px-3 py-2 border rounded-lg text-sm" />
             </div>
           </div>
+
+          {/* Customer Quote History */}
+          {customerHistory.length > 0 && (
+            <div className="bg-gray-50 border rounded-lg p-3">
+              <p className="text-sm font-medium text-gray-700 mb-2">Previous quotes for this customer:</p>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {customerHistory.map((h) => (
+                  <div key={h.id} className="flex items-center justify-between text-xs text-gray-600">
+                    <span className="font-mono">{h.quote_number}</span>
+                    <span>{new Date(h.quote_date).toLocaleDateString()}</span>
+                    <span className="font-mono">${parseFloat(h.total).toFixed(2)}</span>
+                    <span className="capitalize">{h.status}</span>
+                    <span>{h.line_count} items</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <div className="flex items-center justify-between mb-2">
