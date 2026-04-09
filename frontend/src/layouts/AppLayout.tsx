@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Package, FileText, Hammer, ShoppingCart,
   Receipt, ArrowLeftRight, Recycle, BarChart3, Settings,
-  Menu, X, LogOut, ChevronDown,
+  Menu, X, LogOut, ChevronDown, ClipboardList, Sparkles,
 } from 'lucide-react';
 
 const navItems = [
@@ -15,8 +15,10 @@ const navItems = [
   { path: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
   { path: '/invoices', label: 'Invoices', icon: Receipt },
   { path: '/transfers', label: 'Transfers', icon: ArrowLeftRight },
+  { path: '/counts', label: 'Physical Counts', icon: ClipboardList },
   { path: '/surplus', label: 'Surplus', icon: Recycle },
   { path: '/reports', label: 'Reports', icon: BarChart3 },
+  { path: '/features', label: 'Features', icon: Sparkles },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 

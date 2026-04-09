@@ -13,6 +13,9 @@ import Invoices from './pages/Invoices';
 import Transfers from './pages/Transfers';
 import Surplus from './pages/Surplus';
 import Reports from './pages/Reports';
+import PhysicalCounts from './pages/PhysicalCounts';
+import CountDetail from './pages/CountDetail';
+import Features from './pages/Features';
 import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -60,8 +63,11 @@ export default function App() {
         <Route path="/purchase-orders" element={<PurchaseOrders />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/transfers" element={<Transfers />} />
+        <Route path="/counts" element={<PhysicalCounts />} />
+        <Route path="/counts/:id" element={<CountDetail />} />
         <Route path="/surplus" element={<Surplus />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/features" element={<Features />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
