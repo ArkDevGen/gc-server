@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -37,7 +37,7 @@ const changePasswordSchema = z.object({
 });
 
 // POST /api/auth/login
-router.post('/login', validate(loginSchema), async (req, res, next) => {
+router.post('/login', validate(loginSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { username, password } = req.body;
     const result = await query(
@@ -80,7 +80,7 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
 });
 
 // GET /api/auth/me
-router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
+router.get('/me', requireAuth, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const result = await query(
       'SELECT id, username, display_name, email, role FROM users WHERE id = $1',
@@ -100,7 +100,7 @@ router.post(
   '/change-password',
   requireAuth,
   validate(changePasswordSchema),
-  async (req: AuthRequest, res, next) => {
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const { old_password, new_password } = req.body;
       const result = await query(
@@ -128,7 +128,7 @@ router.get(
   '/users',
   requireAuth,
   requireRole(UserRole.ADMIN),
-  async (_req, res, next) => {
+  async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await query(
         'SELECT id, username, display_name, email, role, is_active, created_at FROM users ORDER BY display_name'
@@ -146,7 +146,7 @@ router.post(
   requireAuth,
   requireRole(UserRole.ADMIN),
   validate(createUserSchema),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { username, password, display_name, email, role } = req.body;
 
@@ -176,9 +176,9 @@ router.patch(
   requireAuth,
   requireRole(UserRole.ADMIN),
   validate(updateUserSchema),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const updates = req.body;
 
       const fields: string[] = [];
