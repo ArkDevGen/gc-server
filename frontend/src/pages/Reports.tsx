@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
-import { BarChart3, AlertTriangle, DollarSign, Recycle, Hammer, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { BarChart3, AlertTriangle, DollarSign, Recycle, Hammer, ArrowDownToLine, ArrowUpFromLine, TrendingUp } from 'lucide-react';
 
-type ReportTab = 'accounts-receivable' | 'accounts-payable' | 'inventory-value' | 'low-stock' | 'build-variance' | 'surplus-aging';
+type ReportTab = 'accounts-receivable' | 'accounts-payable' | 'reorder-suggestions' | 'inventory-value' | 'low-stock' | 'build-variance' | 'surplus-aging';
 
 export default function Reports() {
   const [tab, setTab] = useState<ReportTab>('accounts-receivable');
@@ -10,6 +10,7 @@ export default function Reports() {
   const tabs: { key: ReportTab; label: string; icon: any }[] = [
     { key: 'accounts-receivable', label: 'Accounts Receivable', icon: ArrowDownToLine },
     { key: 'accounts-payable', label: 'Accounts Payable', icon: ArrowUpFromLine },
+    { key: 'reorder-suggestions', label: 'Reorder Suggestions', icon: TrendingUp },
     { key: 'inventory-value', label: 'Inventory Value', icon: DollarSign },
     { key: 'low-stock', label: 'Low Stock', icon: AlertTriangle },
     { key: 'build-variance', label: 'Build Variance', icon: Hammer },
@@ -35,6 +36,7 @@ export default function Reports() {
 
       {tab === 'accounts-receivable' && <AccountsReceivableReport />}
       {tab === 'accounts-payable' && <AccountsPayableReport />}
+      {tab === 'reorder-suggestions' && <ReorderSuggestionsReport />}
       {tab === 'inventory-value' && <InventoryValueReport />}
       {tab === 'low-stock' && <LowStockReport />}
       {tab === 'build-variance' && <BuildVarianceReport />}
@@ -409,4 +411,154 @@ function AccountsPayableReport() {
   useEffect(() => { api.get('/reports/accounts-payable').then((res) => setData(res.data)).finally(() => setLoading(false)); }, []);
   if (loading) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
   return <AgingTable data={data} type="ap" />;
+}
+
+function ReorderSuggestionsReport() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [applying, setApplying] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const fetchData = () => {
+    api.get('/reports/reorder-suggestions').then((res) => setData(res.data)).finally(() => setLoading(false));
+  };
+  useEffect(() => { fetchData(); }, []);
+
+  const withUsage = data.filter((d) => d.has_usage_data);
+  const withDifference = withUsage.filter((d) => d.difference !== 0);
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selected);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelected(next);
+  };
+
+  const selectAllDiffs = () => {
+    if (selected.size === withDifference.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(withDifference.map((d) => d.id)));
+    }
+  };
+
+  const applySelected = async () => {
+    const items = data
+      .filter((d) => selected.has(d.id))
+      .map((d) => ({ id: d.id, reorder_point: d.suggested_reorder_point }));
+    if (items.length === 0) return;
+
+    setApplying(true);
+    try {
+      const res = await api.post('/reports/reorder-suggestions/apply', { items });
+      alert(`Updated ${res.data.updated} items with suggested reorder points.`);
+      setSelected(new Set());
+      fetchData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to apply');
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  if (loading) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <p className="text-sm text-blue-800 font-medium mb-1">How this works</p>
+        <p className="text-xs text-blue-700">
+          Reorder points are calculated from actual usage over the last 90 days:
+          <span className="font-mono ml-1">(Avg Daily Usage x Lead Time) + (Avg Daily Usage x Safety Stock Days)</span>.
+          Lead time defaults from the vendor but can be overridden per item. Safety stock defaults to 7 days.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border p-4">
+          <p className="text-sm text-gray-500">Items with Usage Data</p>
+          <p className="text-2xl font-bold">{withUsage.length}</p>
+        </div>
+        <div className="bg-white rounded-xl border p-4">
+          <p className="text-sm text-gray-500">Needing Adjustment</p>
+          <p className="text-2xl font-bold text-amber-600">{withDifference.length}</p>
+        </div>
+        <div className="bg-white rounded-xl border p-4">
+          <p className="text-sm text-gray-500">No Usage Data</p>
+          <p className="text-2xl font-bold text-gray-400">{data.length - withUsage.length}</p>
+        </div>
+      </div>
+
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 bg-primary-50 border border-primary-200 rounded-lg p-3">
+          <span className="text-sm font-medium text-primary-700">{selected.size} items selected</span>
+          <button onClick={applySelected} disabled={applying}
+            className="px-4 py-1.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50">
+            {applying ? 'Applying...' : 'Apply Selected'}
+          </button>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b">
+              <th className="text-center px-3 py-3 w-10">
+                <input type="checkbox" checked={selected.size === withDifference.length && withDifference.length > 0}
+                  onChange={selectAllDiffs} className="rounded" />
+              </th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Item</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Vendor</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Avg Daily Use</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Lead Time</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">On Hand</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Current RP</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Suggested RP</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600">Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.length === 0 ? (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-500">No items found. Usage data is needed to generate suggestions.</td></tr>
+            ) : data.map((item) => {
+              const diff = item.difference;
+              return (
+                <tr key={item.id} className={`border-b last:border-0 ${!item.has_usage_data ? 'opacity-50' : ''}`}>
+                  <td className="text-center px-3 py-3">
+                    {item.has_usage_data && diff !== 0 && (
+                      <input type="checkbox" checked={selected.has(item.id)}
+                        onChange={() => toggleSelect(item.id)} className="rounded" />
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="font-medium">{item.name}</span>
+                    {item.sku && <span className="text-xs text-gray-400 ml-2">{item.sku}</span>}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{item.vendor_name || '--'}</td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {item.has_usage_data ? `${item.avg_daily_usage}/day` : <span className="text-gray-400">No data</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono">{item.effective_lead_time}d</td>
+                  <td className="px-4 py-3 text-right font-mono">{parseFloat(item.total_on_hand).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-mono">{item.current_reorder_point}</td>
+                  <td className="px-4 py-3 text-right font-mono font-bold">
+                    {item.has_usage_data ? item.suggested_reorder_point : '--'}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {item.has_usage_data && diff !== 0 ? (
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold
+                        ${diff > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                        {diff > 0 ? '+' : ''}{diff}
+                      </span>
+                    ) : item.has_usage_data ? (
+                      <span className="text-xs text-green-600">OK</span>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }

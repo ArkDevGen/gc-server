@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { query } from '../config/database';
-import { requireAuth } from '../middleware/auth';
+import { UserRole } from '../config/constants';
+import { requireAuth, requireRole } from '../middleware/auth';
 
 const router = Router();
 
@@ -245,6 +246,94 @@ router.get('/accounts-payable', requireAuth, async (_req: Request, res: Response
     next(err);
   }
 });
+
+// GET /api/reports/reorder-suggestions — auto-calculated reorder points
+router.get('/reorder-suggestions', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Calculate average daily usage over last 90 days from inventory_adjustments
+    // Only count outgoing adjustments: build_usage, sale, transfer_out
+    const result = await query(`
+      SELECT i.id, i.sku, i.name, i.unit_of_measure, i.reorder_point as current_reorder_point,
+        i.reorder_qty, i.lead_time_days as item_lead_time, i.safety_stock_days,
+        v.name as vendor_name, v.lead_time_days as vendor_lead_time, v.website as vendor_website,
+        c.name as category_name,
+        COALESCE(SUM(il.qty_on_hand), 0) as total_on_hand,
+        usage.total_used_90d,
+        usage.avg_daily_usage,
+        COALESCE(i.lead_time_days, v.lead_time_days, 7) as effective_lead_time,
+        COALESCE(i.safety_stock_days, 7) as effective_safety_days
+      FROM items i
+      LEFT JOIN categories c ON i.category_id = c.id
+      LEFT JOIN vendors v ON i.preferred_vendor_id = v.id
+      LEFT JOIN item_locations il ON il.item_id = i.id
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(SUM(ABS(ia.qty_change)), 0) as total_used_90d,
+          CASE
+            WHEN COUNT(*) > 0 THEN COALESCE(SUM(ABS(ia.qty_change)), 0) / 90.0
+            ELSE 0
+          END as avg_daily_usage
+        FROM inventory_adjustments ia
+        WHERE ia.item_id = i.id
+          AND ia.qty_change < 0
+          AND ia.reason IN ('build_usage', 'sale', 'transfer_out')
+          AND ia.created_at >= NOW() - INTERVAL '90 days'
+      ) usage ON true
+      WHERE i.is_active = true
+      GROUP BY i.id, c.name, v.name, v.lead_time_days, v.website,
+        usage.total_used_90d, usage.avg_daily_usage
+      ORDER BY usage.avg_daily_usage DESC NULLS LAST
+    `);
+
+    // Calculate suggested reorder point for each item
+    const suggestions = result.rows.map((item: any) => {
+      const avgDaily = parseFloat(item.avg_daily_usage) || 0;
+      const leadTime = parseInt(item.effective_lead_time) || 7;
+      const safetyDays = parseInt(item.effective_safety_days) || 7;
+
+      // Reorder Point = (avg daily usage × lead time) + (avg daily usage × safety days)
+      const suggested = Math.ceil(avgDaily * leadTime + avgDaily * safetyDays);
+      const current = item.current_reorder_point || 0;
+
+      return {
+        ...item,
+        avg_daily_usage: Math.round(avgDaily * 100) / 100,
+        suggested_reorder_point: suggested,
+        difference: suggested - current,
+        has_usage_data: avgDaily > 0,
+      };
+    });
+
+    res.json(suggestions);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/reports/reorder-suggestions/apply — apply suggested reorder points
+router.post('/reorder-suggestions/apply', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { items } = req.body; // [{ id, reorder_point }]
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'No items provided' });
+      }
+
+      let updated = 0;
+      for (const item of items) {
+        const result = await query(
+          'UPDATE items SET reorder_point = $1 WHERE id = $2',
+          [item.reorder_point, item.id]
+        );
+        if (result.rowCount && result.rowCount > 0) updated++;
+      }
+
+      res.json({ message: `Updated ${updated} items`, updated });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // GET /api/reports/dashboard-stats — aggregated stats for dashboard
 router.get('/dashboard-stats', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
