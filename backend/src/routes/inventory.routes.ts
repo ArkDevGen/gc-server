@@ -22,6 +22,7 @@ const createItemSchema = z.object({
   sell_price: z.number().min(0).default(0),
   reorder_point: z.number().int().min(0).default(0),
   reorder_qty: z.number().int().min(0).default(0),
+  preferred_vendor_id: z.string().uuid().optional(),
 });
 
 const updateItemSchema = z.object({
@@ -35,6 +36,7 @@ const updateItemSchema = z.object({
   sell_price: z.number().min(0).optional(),
   reorder_point: z.number().int().min(0).optional(),
   reorder_qty: z.number().int().min(0).optional(),
+  preferred_vendor_id: z.string().uuid().nullable().optional(),
 });
 
 const adjustStockSchema = z.object({
@@ -160,7 +162,7 @@ router.post(
     try {
       const {
         sku, name, description, item_type, category_id,
-        unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty,
+        unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty, preferred_vendor_id,
       } = req.body;
 
       if (sku) {
@@ -171,11 +173,11 @@ router.post(
       }
 
       const result = await query(
-        `INSERT INTO items (sku, name, description, item_type, category_id, unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO items (sku, name, description, item_type, category_id, unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty, preferred_vendor_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
         [sku || null, name, description || null, item_type, category_id || null,
-         unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty]
+         unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty, preferred_vendor_id || null]
       );
 
       res.status(201).json(result.rows[0]);

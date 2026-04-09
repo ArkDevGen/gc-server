@@ -40,12 +40,14 @@ router.get('/low-stock', requireAuth, async (_req: Request, res: Response, next:
     const result = await query(`
       SELECT i.id, i.sku, i.name, i.unit_of_measure, i.reorder_point, i.reorder_qty,
         c.name as category_name,
+        v.name as vendor_name, v.website as vendor_website,
         COALESCE(SUM(il.qty_on_hand), 0) as total_on_hand
       FROM items i
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN item_locations il ON il.item_id = i.id
+      LEFT JOIN vendors v ON i.preferred_vendor_id = v.id
       WHERE i.is_active = true AND i.reorder_point > 0
-      GROUP BY i.id, c.name
+      GROUP BY i.id, c.name, v.name, v.website
       HAVING COALESCE(SUM(il.qty_on_hand), 0) <= i.reorder_point
       ORDER BY (COALESCE(SUM(il.qty_on_hand), 0)::float / NULLIF(i.reorder_point, 0)) ASC
     `);

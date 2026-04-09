@@ -12,6 +12,7 @@ const vendorSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().max(50).optional(),
   address: z.string().optional(),
+  website: z.string().max(500).optional(),
 });
 
 // GET /api/vendors
@@ -38,10 +39,10 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
 router.post('/', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), validate(vendorSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, email, phone, address } = req.body;
+      const { name, email, phone, address, website } = req.body;
       const result = await query(
-        'INSERT INTO vendors (name, email, phone, address) VALUES ($1, $2, $3, $4) RETURNING *',
-        [name, email || null, phone || null, address || null]
+        'INSERT INTO vendors (name, email, phone, address, website) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [name, email || null, phone || null, address || null, website || null]
       );
       res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -54,12 +55,12 @@ router.post('/', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), vali
 router.patch('/:id', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, email, phone, address } = req.body;
+      const { name, email, phone, address, website } = req.body;
       const result = await query(
         `UPDATE vendors SET name = COALESCE($1, name), email = COALESCE($2, email),
-         phone = COALESCE($3, phone), address = COALESCE($4, address)
-         WHERE id = $5 RETURNING *`,
-        [name, email, phone, address, req.params.id]
+         phone = COALESCE($3, phone), address = COALESCE($4, address), website = COALESCE($5, website)
+         WHERE id = $6 RETURNING *`,
+        [name, email, phone, address, website, req.params.id]
       );
       if (result.rows.length === 0) return res.status(404).json({ error: 'Vendor not found' });
       res.json(result.rows[0]);

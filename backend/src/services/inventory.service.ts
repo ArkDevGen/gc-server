@@ -79,9 +79,10 @@ export async function adjustStock(params: AdjustStockParams): Promise<void> {
 
 export async function getItemWithLocations(itemId: string) {
   const itemResult = await query(
-    `SELECT i.*, c.name as category_name
+    `SELECT i.*, c.name as category_name, v.name as vendor_name, v.website as vendor_website
      FROM items i
      LEFT JOIN categories c ON i.category_id = c.id
+     LEFT JOIN vendors v ON i.preferred_vendor_id = v.id
      WHERE i.id = $1`,
     [itemId]
   );

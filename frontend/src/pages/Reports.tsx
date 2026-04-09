@@ -121,13 +121,14 @@ function LowStockReport() {
             <th className="text-right px-4 py-3 font-medium text-gray-600">Reorder At</th>
             <th className="text-right px-4 py-3 font-medium text-gray-600">Reorder Qty</th>
             <th className="text-center px-4 py-3 font-medium text-gray-600">Level</th>
+            <th className="text-center px-4 py-3 font-medium text-gray-600">Order</th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
-            <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+            <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
           ) : data.length === 0 ? (
-            <tr><td colSpan={7} className="px-4 py-8 text-center text-green-600">All items above reorder point</td></tr>
+            <tr><td colSpan={8} className="px-4 py-8 text-center text-green-600">All items above reorder point</td></tr>
           ) : data.map((item) => {
             const pct = item.reorder_point > 0 ? (parseFloat(item.total_on_hand) / item.reorder_point) * 100 : 100;
             return (
@@ -143,6 +144,19 @@ function LowStockReport() {
                     <div className={`h-2 rounded-full ${pct <= 25 ? 'bg-red-500' : pct <= 75 ? 'bg-amber-500' : 'bg-green-500'}`}
                       style={{ width: `${Math.min(pct, 100)}%` }} />
                   </div>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  {item.vendor_website ? (
+                    <a href={item.vendor_website.startsWith('http') ? item.vendor_website : `https://${item.vendor_website}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-primary-50 text-primary-700 rounded hover:bg-primary-100 transition-colors">
+                      Order from {item.vendor_name}
+                    </a>
+                  ) : item.vendor_name ? (
+                    <span className="text-xs text-gray-400">{item.vendor_name}</span>
+                  ) : (
+                    <span className="text-xs text-gray-300">--</span>
+                  )}
                 </td>
               </tr>
             );
