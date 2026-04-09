@@ -101,11 +101,11 @@ export async function getItemWithLocations(itemId: string) {
     ...itemResult.rows[0],
     locations: locResult.rows,
     total_on_hand: locResult.rows.reduce(
-      (sum, r) => sum + parseFloat(r.qty_on_hand),
+      (sum: number, r: any) => sum + parseFloat(r.qty_on_hand),
       0
     ),
     total_available: locResult.rows.reduce(
-      (sum, r) => sum + parseFloat(r.qty_available),
+      (sum: number, r: any) => sum + parseFloat(r.qty_available),
       0
     ),
   };

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { query } from '../config/database';
 import { UserRole, ItemType, UnitOfMeasure, AdjustmentReason } from '../config/constants';
@@ -54,7 +54,7 @@ const setBinSchema = z.object({
 // --- Item CRUD ---
 
 // GET /api/items
-router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
+router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 25));
@@ -85,13 +85,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
       paramIdx++;
     }
 
-    let joinClause = '';
-    let selectExtra = '';
-    let groupBy = '';
-    let havingClause = '';
-
     if (locationId) {
-      joinClause = `JOIN item_locations il ON il.item_id = i.id AND il.location_id = $${paramIdx}`;
       params.push(locationId);
       paramIdx++;
     }
@@ -112,7 +106,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
       FROM items i
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN item_locations allil ON allil.item_id = i.id
-      ${locationId ? `JOIN item_locations il ON il.item_id = i.id AND il.location_id = $${params.indexOf(locationId) + 1}` : ''}
+      ${locationId ? `JOIN item_locations il ON il.item_id = i.id AND il.location_id = $${paramIdx - 1}` : ''}
       ${where}
       GROUP BY i.id, c.name
       ${lowStock ? 'HAVING COALESCE(SUM(allil.qty_on_hand), 0) <= i.reorder_point' : ''}
@@ -144,7 +138,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
 });
 
 // GET /api/items/:id
-router.get('/:id', requireAuth, async (req, res, next) => {
+router.get('/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const item = await getItemWithLocations(req.params.id as string);
     if (!item) {
@@ -162,7 +156,7 @@ router.post(
   requireAuth,
   requireRole(UserRole.ADMIN, UserRole.OFFICE),
   validate(createItemSchema),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const {
         sku, name, description, item_type, category_id,
@@ -197,9 +191,9 @@ router.patch(
   requireAuth,
   requireRole(UserRole.ADMIN, UserRole.OFFICE),
   validate(updateItemSchema),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const updates = req.body;
 
       const fields: string[] = [];
@@ -238,7 +232,7 @@ router.delete(
   '/:id',
   requireAuth,
   requireRole(UserRole.ADMIN),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await query(
         'UPDATE items SET is_active = false WHERE id = $1 RETURNING id',
@@ -259,17 +253,17 @@ router.post(
   '/:id/adjust',
   requireAuth,
   validate(adjustStockSchema),
-  async (req: AuthRequest, res, next) => {
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const { location_id, qty_change, reason, notes } = req.body;
 
+      const itemId = req.params.id as string;
       // Verify item exists
-      const item = await query('SELECT id FROM items WHERE id = $1 AND is_active = true', [req.params.id]);
+      const item = await query('SELECT id FROM items WHERE id = $1 AND is_active = true', [itemId]);
       if (item.rows.length === 0) {
         return res.status(404).json({ error: 'Item not found' });
       }
 
-      const itemId = req.params.id as string;
       await adjustStock({
         itemId,
         locationId: location_id,
@@ -288,7 +282,7 @@ router.post(
 );
 
 // GET /api/items/:id/history
-router.get('/:id/history', requireAuth, async (req, res, next) => {
+router.get('/:id/history', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, parseInt(req.query.limit as string) || 50);
@@ -315,7 +309,7 @@ router.post(
   '/:id/bin',
   requireAuth,
   validate(setBinSchema),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { location_id, bin_aisle, bin_shelf, bin_position } = req.body;
 
@@ -338,7 +332,7 @@ router.post(
 // --- Locations ---
 
 // GET /api/locations
-router.get('/locations/list', requireAuth, async (_req, res, next) => {
+router.get('/locations/list', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await query(
       'SELECT * FROM locations WHERE is_active = true ORDER BY name'
@@ -354,7 +348,7 @@ router.post(
   '/locations/list',
   requireAuth,
   requireRole(UserRole.ADMIN),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { name, slug, location_type, address } = req.body;
       const result = await query(
@@ -371,7 +365,7 @@ router.post(
 // --- Categories ---
 
 // GET /api/categories
-router.get('/categories/list', requireAuth, async (_req, res, next) => {
+router.get('/categories/list', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await query(
       'SELECT * FROM categories ORDER BY sort_order, name'
@@ -387,7 +381,7 @@ router.post(
   '/categories/list',
   requireAuth,
   requireRole(UserRole.ADMIN),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { name, parent_id, sort_order } = req.body;
       const result = await query(
