@@ -14,6 +14,8 @@ import buildsRoutes from './routes/builds.routes';
 import surplusRoutes from './routes/surplus.routes';
 import templatesRoutes from './routes/templates.routes';
 import importRoutes from './routes/import.routes';
+import transfersRoutes from './routes/transfers.routes';
+import reportsRoutes from './routes/reports.routes';
 
 const app = express();
 
@@ -38,6 +40,8 @@ app.use('/api/builds', buildsRoutes);
 app.use('/api/surplus', surplusRoutes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/transfers', transfersRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // Serve frontend in production
 if (env.NODE_ENV === 'production') {

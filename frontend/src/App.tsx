@@ -10,9 +10,10 @@ import Builds from './pages/Builds';
 import BuildDetail from './pages/BuildDetail';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Invoices from './pages/Invoices';
+import Transfers from './pages/Transfers';
 import Surplus from './pages/Surplus';
+import Reports from './pages/Reports';
 import Settings from './pages/Settings';
-import Placeholder from './pages/Placeholder';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -54,14 +55,13 @@ export default function App() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/inventory/:id" element={<InventoryDetail />} />
         <Route path="/quotes" element={<Quotes />} />
-        <Route path="/quotes/:id" element={<Placeholder title="Quote Detail" phase="coming soon" />} />
         <Route path="/builds" element={<Builds />} />
         <Route path="/builds/:id" element={<BuildDetail />} />
         <Route path="/purchase-orders" element={<PurchaseOrders />} />
         <Route path="/invoices" element={<Invoices />} />
-        <Route path="/transfers" element={<Placeholder title="Transfers" phase="Phase 5" />} />
+        <Route path="/transfers" element={<Transfers />} />
         <Route path="/surplus" element={<Surplus />} />
-        <Route path="/reports" element={<Placeholder title="Reports" phase="Phase 5" />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
