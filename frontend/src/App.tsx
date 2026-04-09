@@ -5,6 +5,12 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import InventoryDetail from './pages/InventoryDetail';
+import Quotes from './pages/Quotes';
+import Builds from './pages/Builds';
+import BuildDetail from './pages/BuildDetail';
+import PurchaseOrders from './pages/PurchaseOrders';
+import Invoices from './pages/Invoices';
+import Surplus from './pages/Surplus';
 import Settings from './pages/Settings';
 import Placeholder from './pages/Placeholder';
 
@@ -47,12 +53,14 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/inventory/:id" element={<InventoryDetail />} />
-        <Route path="/quotes" element={<Placeholder title="Quotes" phase="Phase 3" />} />
-        <Route path="/builds" element={<Placeholder title="Builds" phase="Phase 3" />} />
-        <Route path="/purchase-orders" element={<Placeholder title="Purchase Orders" phase="Phase 2" />} />
-        <Route path="/invoices" element={<Placeholder title="Invoices" phase="Phase 2" />} />
+        <Route path="/quotes" element={<Quotes />} />
+        <Route path="/quotes/:id" element={<Placeholder title="Quote Detail" phase="coming soon" />} />
+        <Route path="/builds" element={<Builds />} />
+        <Route path="/builds/:id" element={<BuildDetail />} />
+        <Route path="/purchase-orders" element={<PurchaseOrders />} />
+        <Route path="/invoices" element={<Invoices />} />
         <Route path="/transfers" element={<Placeholder title="Transfers" phase="Phase 5" />} />
-        <Route path="/surplus" element={<Placeholder title="Surplus" phase="Phase 5" />} />
+        <Route path="/surplus" element={<Surplus />} />
         <Route path="/reports" element={<Placeholder title="Reports" phase="Phase 5" />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

@@ -5,6 +5,13 @@ import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth.routes';
 import inventoryRoutes from './routes/inventory.routes';
+import customersRoutes from './routes/customers.routes';
+import vendorsRoutes from './routes/vendors.routes';
+import poRoutes from './routes/po.routes';
+import invoicesRoutes from './routes/invoices.routes';
+import quotesRoutes from './routes/quotes.routes';
+import buildsRoutes from './routes/builds.routes';
+import surplusRoutes from './routes/surplus.routes';
 
 const app = express();
 
@@ -20,6 +27,13 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/items', inventoryRoutes);
+app.use('/api/customers', customersRoutes);
+app.use('/api/vendors', vendorsRoutes);
+app.use('/api/purchase-orders', poRoutes);
+app.use('/api/invoices', invoicesRoutes);
+app.use('/api/quotes', quotesRoutes);
+app.use('/api/builds', buildsRoutes);
+app.use('/api/surplus', surplusRoutes);
 
 // Serve frontend in production
 if (env.NODE_ENV === 'production') {
