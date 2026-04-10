@@ -37,6 +37,8 @@ const updateItemSchema = z.object({
   reorder_point: z.number().int().min(0).optional(),
   reorder_qty: z.number().int().min(0).optional(),
   preferred_vendor_id: z.string().uuid().nullable().optional(),
+  lead_time_days: z.number().int().min(0).nullable().optional(),
+  safety_stock_days: z.number().int().min(0).optional(),
 });
 
 const adjustStockSchema = z.object({
