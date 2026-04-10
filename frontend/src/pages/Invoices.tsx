@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
 import { Receipt } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -15,10 +16,19 @@ const statusColors: Record<string, string> = {
 export default function Invoices() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  useEffect(() => {
-    api.get('/invoices').then((res) => setInvoices(res.data)).catch(() => {}).finally(() => setLoading(false));
+  const fetchInvoices = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/invoices', { params: { page, limit: 25 } });
+      setInvoices(res.data.data);
+      setPagination(res.data.pagination);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, []);
+
+  useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
   return (
     <div>
@@ -67,6 +77,7 @@ export default function Invoices() {
             ))}
           </tbody>
         </table>
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchInvoices(p)} />
       </div>
     </div>
   );

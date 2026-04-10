@@ -41,10 +41,22 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     let idx = 1;
 
     if (status) { sql += ` AND pc.status = $${idx}`; params.push(status); idx++; }
-    sql += ' ORDER BY pc.created_at DESC';
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 25;
+    const offset = (page - 1) * limit;
+
+    const countResult = await query(`SELECT COUNT(*) as total FROM (${sql}) sub`, params);
+    const total = parseInt(countResult.rows[0].total);
+
+    sql += ` ORDER BY pc.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    params.push(limit, offset);
 
     const result = await query(sql, params);
-    res.json(result.rows);
+    res.json({
+      data: result.rows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     next(err);
   }

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
 import { Plus, ArrowLeftRight, ArrowRight, Truck, PackageCheck } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 const statusColors: Record<string, string> = {
   requested: 'bg-gray-100 text-gray-700',
@@ -15,11 +16,18 @@ export default function Transfers() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  const fetchTransfers = () => {
-    api.get('/transfers').then((res) => setTransfers(res.data)).catch(() => {}).finally(() => setLoading(false));
-  };
-  useEffect(() => { fetchTransfers(); }, []);
+  const fetchTransfers = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/transfers', { params: { page, limit: 25 } });
+      setTransfers(res.data.data);
+      setPagination(res.data.pagination);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { fetchTransfers(); }, [fetchTransfers]);
 
   const handleAction = async (id: string, action: string) => {
     setActionLoading(id + action);
@@ -101,6 +109,7 @@ export default function Transfers() {
             ))}
           </tbody>
         </table>
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchTransfers(p)} />
       </div>
 
       {showCreate && <CreateTransferModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchTransfers(); }} />}

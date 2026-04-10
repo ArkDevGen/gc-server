@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
 import { Search, Recycle } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 export default function Surplus() {
   const [surplus, setSurplus] = useState<any[]>([]);
@@ -8,20 +9,25 @@ export default function Surplus() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'detail' | 'summary'>('summary');
   const [search, setSearch] = useState('');
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (page = 1) => {
+    setLoading(true);
     try {
+      const params: any = { page, limit: 25 };
+      if (search) params.search = search;
       const [detailRes, summaryRes] = await Promise.all([
-        api.get('/surplus', { params: search ? { search } : {} }),
+        api.get('/surplus', { params }),
         api.get('/surplus/summary'),
       ]);
-      setSurplus(detailRes.data);
+      setSurplus(detailRes.data.data);
+      setPagination(detailRes.data.pagination);
       setSummary(summaryRes.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  };
+  }, [search]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
     <div>
@@ -30,7 +36,7 @@ export default function Surplus() {
       </div>
 
       <div className="bg-white rounded-xl border p-4 mb-4">
-        <form onSubmit={(e) => { e.preventDefault(); fetchData(); }} className="flex gap-3">
+        <form onSubmit={(e) => { e.preventDefault(); fetchData(1); }} className="flex gap-3">
           <div className="flex-1 relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="text" placeholder="Search surplus items..." value={search}
@@ -123,6 +129,9 @@ export default function Surplus() {
               ))}
             </tbody>
           </table>
+        )}
+        {tab === 'detail' && (
+          <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchData(p)} />
         )}
       </div>
     </div>

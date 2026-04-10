@@ -6,8 +6,15 @@ import { requireAuth, requireRole } from '../middleware/auth';
 const router = Router();
 
 // GET /api/reports/inventory-summary
-router.get('/inventory-summary', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/inventory-summary', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 25;
+    const offset = (page - 1) * limit;
+
+    const countResult = await query(`SELECT COUNT(*) as total FROM items WHERE is_active = true`);
+    const total = parseInt(countResult.rows[0].total);
+
     const result = await query(`
       SELECT i.id, i.sku, i.name, i.item_type, i.unit_of_measure,
         i.cost_price, i.sell_price, i.reorder_point,
@@ -28,17 +35,25 @@ router.get('/inventory-summary', requireAuth, async (_req: Request, res: Respons
       WHERE i.is_active = true
       GROUP BY i.id, c.name
       ORDER BY i.name
-    `);
-    res.json(result.rows);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+    res.json({
+      data: result.rows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/reports/low-stock
-router.get('/low-stock', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/low-stock', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await query(`
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 25;
+    const offset = (page - 1) * limit;
+
+    const baseSql = `
       SELECT i.id, i.sku, i.name, i.unit_of_measure, i.reorder_point, i.reorder_qty,
         c.name as category_name,
         v.name as vendor_name, v.website as vendor_website,
@@ -49,18 +64,34 @@ router.get('/low-stock', requireAuth, async (_req: Request, res: Response, next:
       LEFT JOIN vendors v ON i.preferred_vendor_id = v.id
       WHERE i.is_active = true AND i.reorder_point > 0
       GROUP BY i.id, c.name, v.name, v.website
-      HAVING COALESCE(SUM(il.qty_on_hand), 0) <= i.reorder_point
+      HAVING COALESCE(SUM(il.qty_on_hand), 0) <= i.reorder_point`;
+
+    const countResult = await query(`SELECT COUNT(*) as total FROM (${baseSql}) sub`);
+    const total = parseInt(countResult.rows[0].total);
+
+    const result = await query(`${baseSql}
       ORDER BY (COALESCE(SUM(il.qty_on_hand), 0)::float / NULLIF(i.reorder_point, 0)) ASC
-    `);
-    res.json(result.rows);
+      LIMIT $1 OFFSET $2`, [limit, offset]);
+
+    res.json({
+      data: result.rows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/reports/build-variance
-router.get('/build-variance', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/build-variance', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 25;
+    const offset = (page - 1) * limit;
+
+    const countResult = await query(`SELECT COUNT(*) as total FROM builds WHERE status = 'complete'`);
+    const total = parseInt(countResult.rows[0].total);
+
     const result = await query(`
       SELECT b.id, b.build_number, b.name, b.status,
         c.name as customer_name,
@@ -76,8 +107,12 @@ router.get('/build-variance', requireAuth, async (_req: Request, res: Response, 
       LEFT JOIN customers c ON b.customer_id = c.id
       WHERE b.status = 'complete'
       ORDER BY b.actual_end_date DESC NULLS LAST
-    `);
-    res.json(result.rows);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+    res.json({
+      data: result.rows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     next(err);
   }
@@ -116,8 +151,15 @@ router.get('/inventory-value', requireAuth, async (_req: Request, res: Response,
 });
 
 // GET /api/reports/surplus-aging
-router.get('/surplus-aging', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/surplus-aging', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 25;
+    const offset = (page - 1) * limit;
+
+    const countResult = await query(`SELECT COUNT(*) as total FROM surplus_pool WHERE is_active = true`);
+    const total = parseInt(countResult.rows[0].total);
+
     const result = await query(`
       SELECT sp.id, i.name as item_name, i.sku, i.unit_of_measure,
         l.name as location_name, b.build_number, b.name as build_name,
@@ -132,7 +174,8 @@ router.get('/surplus-aging', requireAuth, async (_req: Request, res: Response, n
       LEFT JOIN builds b ON sp.build_id = b.id
       WHERE sp.is_active = true
       ORDER BY sp.captured_at ASC
-    `);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
 
     const summary = await query(`
       SELECT COUNT(*) as total_entries,
@@ -141,15 +184,26 @@ router.get('/surplus-aging', requireAuth, async (_req: Request, res: Response, n
       FROM surplus_pool sp WHERE sp.is_active = true
     `);
 
-    res.json({ items: result.rows, summary: summary.rows[0] });
+    res.json({
+      items: result.rows,
+      summary: summary.rows[0],
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/reports/accounts-receivable — what customers owe (unpaid invoices)
-router.get('/accounts-receivable', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/accounts-receivable', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 25;
+    const offset = (page - 1) * limit;
+
+    const invoiceCountResult = await query(`SELECT COUNT(*) as total FROM invoices WHERE status NOT IN ('paid', 'voided')`);
+    const invoiceTotal = parseInt(invoiceCountResult.rows[0].total);
+
     const result = await query(`
       SELECT inv.id, inv.invoice_number, inv.invoice_date, inv.due_date, inv.total, inv.status,
         c.name as customer_name, c.id as customer_id,
@@ -165,7 +219,16 @@ router.get('/accounts-receivable', requireAuth, async (_req: Request, res: Respo
       JOIN customers c ON inv.customer_id = c.id
       WHERE inv.status NOT IN ('paid', 'voided')
       ORDER BY inv.due_date ASC NULLS LAST
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    const customerCountResult = await query(`
+      SELECT COUNT(*) as total FROM (
+        SELECT c.id FROM invoices inv JOIN customers c ON inv.customer_id = c.id
+        WHERE inv.status NOT IN ('paid', 'voided') GROUP BY c.id
+      ) sub
     `);
+    const customerTotal = parseInt(customerCountResult.rows[0].total);
 
     // Summary by customer
     const summary = await query(`
@@ -182,7 +245,8 @@ router.get('/accounts-receivable', requireAuth, async (_req: Request, res: Respo
       WHERE inv.status NOT IN ('paid', 'voided')
       GROUP BY c.id, c.name
       ORDER BY total_owed DESC
-    `);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
 
     const totals = await query(`
       SELECT COALESCE(SUM(total), 0) as total_ar,
@@ -191,15 +255,28 @@ router.get('/accounts-receivable', requireAuth, async (_req: Request, res: Respo
       FROM invoices WHERE status NOT IN ('paid', 'voided')
     `);
 
-    res.json({ invoices: result.rows, by_customer: summary.rows, totals: totals.rows[0] });
+    res.json({
+      invoices: result.rows,
+      invoices_pagination: { page, limit, total: invoiceTotal, totalPages: Math.ceil(invoiceTotal / limit) },
+      by_customer: summary.rows,
+      by_customer_pagination: { page, limit, total: customerTotal, totalPages: Math.ceil(customerTotal / limit) },
+      totals: totals.rows[0],
+    });
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/reports/accounts-payable — what we owe vendors (open POs)
-router.get('/accounts-payable', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/accounts-payable', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 25;
+    const offset = (page - 1) * limit;
+
+    const poCountResult = await query(`SELECT COUNT(*) as total FROM purchase_orders WHERE status NOT IN ('received', 'cancelled')`);
+    const poTotal = parseInt(poCountResult.rows[0].total);
+
     const result = await query(`
       SELECT po.id, po.po_number, po.order_date, po.expected_date, po.total, po.status,
         v.name as vendor_name, v.id as vendor_id,
@@ -215,7 +292,16 @@ router.get('/accounts-payable', requireAuth, async (_req: Request, res: Response
       JOIN vendors v ON po.vendor_id = v.id
       WHERE po.status NOT IN ('received', 'cancelled')
       ORDER BY po.order_date ASC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    const vendorCountResult = await query(`
+      SELECT COUNT(*) as total FROM (
+        SELECT v.id FROM purchase_orders po JOIN vendors v ON po.vendor_id = v.id
+        WHERE po.status NOT IN ('received', 'cancelled') GROUP BY v.id
+      ) sub
     `);
+    const vendorTotal = parseInt(vendorCountResult.rows[0].total);
 
     // Summary by vendor
     const summary = await query(`
@@ -232,7 +318,8 @@ router.get('/accounts-payable', requireAuth, async (_req: Request, res: Response
       WHERE po.status NOT IN ('received', 'cancelled')
       GROUP BY v.id, v.name
       ORDER BY total_owed DESC
-    `);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
 
     const totals = await query(`
       SELECT COALESCE(SUM(total), 0) as total_ap,
@@ -241,14 +328,20 @@ router.get('/accounts-payable', requireAuth, async (_req: Request, res: Response
       FROM purchase_orders WHERE status NOT IN ('received', 'cancelled')
     `);
 
-    res.json({ purchase_orders: result.rows, by_vendor: summary.rows, totals: totals.rows[0] });
+    res.json({
+      purchase_orders: result.rows,
+      purchase_orders_pagination: { page, limit, total: poTotal, totalPages: Math.ceil(poTotal / limit) },
+      by_vendor: summary.rows,
+      by_vendor_pagination: { page, limit, total: vendorTotal, totalPages: Math.ceil(vendorTotal / limit) },
+      totals: totals.rows[0],
+    });
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/reports/reorder-suggestions — auto-calculated reorder points
-router.get('/reorder-suggestions', requireAuth, async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/reorder-suggestions', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Calculate average daily usage over last 90 days from inventory_adjustments
     // Only count outgoing adjustments: build_usage, sale, transfer_out
@@ -304,7 +397,16 @@ router.get('/reorder-suggestions', requireAuth, async (_req: Request, res: Respo
       };
     });
 
-    res.json(suggestions);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 25;
+    const offset = (page - 1) * limit;
+    const total = suggestions.length;
+    const paginatedSuggestions = suggestions.slice(offset, offset + limit);
+
+    res.json({
+      data: paginatedSuggestions,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     next(err);
   }

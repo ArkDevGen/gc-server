@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { Plus, ShoppingCart } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -15,10 +16,19 @@ const statusColors: Record<string, string> = {
 export default function PurchaseOrders() {
   const [pos, setPOs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  useEffect(() => {
-    api.get('/purchase-orders').then((res) => setPOs(res.data)).catch(() => {}).finally(() => setLoading(false));
+  const fetchPOs = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/purchase-orders', { params: { page, limit: 25 } });
+      setPOs(res.data.data);
+      setPagination(res.data.pagination);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, []);
+
+  useEffect(() => { fetchPOs(); }, [fetchPOs]);
 
   return (
     <div>
@@ -62,6 +72,7 @@ export default function PurchaseOrders() {
             ))}
           </tbody>
         </table>
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchPOs(p)} />
       </div>
     </div>
   );

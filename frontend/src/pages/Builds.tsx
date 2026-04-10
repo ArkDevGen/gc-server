@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { Plus, Hammer } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 const statusColors: Record<string, string> = {
   planning: 'bg-gray-100 text-gray-700',
@@ -14,10 +15,19 @@ const statusColors: Record<string, string> = {
 export default function Builds() {
   const [builds, setBuilds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  useEffect(() => {
-    api.get('/builds').then((res) => setBuilds(res.data)).catch(() => {}).finally(() => setLoading(false));
+  const fetchBuilds = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/builds', { params: { page, limit: 25 } });
+      setBuilds(res.data.data);
+      setPagination(res.data.pagination);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, []);
+
+  useEffect(() => { fetchBuilds(); }, [fetchBuilds]);
 
   return (
     <div>
@@ -71,6 +81,7 @@ export default function Builds() {
             ))}
           </tbody>
         </table>
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchBuilds(p)} />
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { Plus, FileText } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -16,16 +17,19 @@ export default function Quotes() {
   const [quotes, setQuotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  const fetchQuotes = async () => {
+  const fetchQuotes = useCallback(async (page = 1) => {
+    setLoading(true);
     try {
-      const res = await api.get('/quotes');
-      setQuotes(res.data);
+      const res = await api.get('/quotes', { params: { page, limit: 25 } });
+      setQuotes(res.data.data);
+      setPagination(res.data.pagination);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchQuotes(); }, []);
+  useEffect(() => { fetchQuotes(); }, [fetchQuotes]);
 
   return (
     <div>
@@ -79,6 +83,7 @@ export default function Quotes() {
             ))}
           </tbody>
         </table>
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchQuotes(p)} />
       </div>
 
       {showCreate && <CreateQuoteModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchQuotes(); }} />}

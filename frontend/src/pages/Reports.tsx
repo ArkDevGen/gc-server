@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
 import { BarChart3, AlertTriangle, DollarSign, Recycle, Hammer, ArrowDownToLine, ArrowUpFromLine, TrendingUp } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 type ReportTab = 'accounts-receivable' | 'accounts-payable' | 'reorder-suggestions' | 'inventory-value' | 'low-stock' | 'build-variance' | 'surplus-aging';
 
@@ -106,10 +107,19 @@ function InventoryValueReport() {
 function LowStockReport() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  useEffect(() => {
-    api.get('/reports/low-stock').then((res) => setData(res.data)).finally(() => setLoading(false));
+  const fetchData = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/reports/low-stock', { params: { page, limit: 25 } });
+      setData(res.data.data);
+      setPagination(res.data.pagination);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
     <div className="bg-white rounded-xl border overflow-hidden">
@@ -165,6 +175,7 @@ function LowStockReport() {
           })}
         </tbody>
       </table>
+      <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchData(p)} />
     </div>
   );
 }
@@ -172,10 +183,19 @@ function LowStockReport() {
 function BuildVarianceReport() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  useEffect(() => {
-    api.get('/reports/build-variance').then((res) => setData(res.data)).finally(() => setLoading(false));
+  const fetchData = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/reports/build-variance', { params: { page, limit: 25 } });
+      setData(res.data.data);
+      setPagination(res.data.pagination);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
     <div className="bg-white rounded-xl border overflow-hidden">
@@ -219,19 +239,33 @@ function BuildVarianceReport() {
           })}
         </tbody>
       </table>
+      <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchData(p)} />
     </div>
   );
 }
 
 function SurplusAgingReport() {
   const [data, setData] = useState<any>(null);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  useEffect(() => {
-    api.get('/reports/surplus-aging').then((res) => setData(res.data)).finally(() => setLoading(false));
+  const fetchData = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/reports/surplus-aging', { params: { page, limit: 25 } });
+      setData(res.data);
+      setItems(res.data.items?.data || []);
+      if (res.data.items?.pagination) {
+        setPagination(res.data.items.pagination);
+      }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, []);
 
-  if (loading) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  if (loading && !data) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
 
   return (
     <div className="space-y-4">
@@ -264,9 +298,11 @@ function SurplusAgingReport() {
             </tr>
           </thead>
           <tbody>
-            {!data?.items?.length ? (
+            {loading ? (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+            ) : !items.length ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No surplus inventory</td></tr>
-            ) : data.items.map((s: any) => (
+            ) : items.map((s: any) => (
               <tr key={s.id} className="border-b last:border-0">
                 <td className="px-4 py-3 font-medium">{s.item_name}</td>
                 <td className="px-4 py-3">{s.location_name}</td>
@@ -282,6 +318,7 @@ function SurplusAgingReport() {
             ))}
           </tbody>
         </table>
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchData(p)} />
       </div>
     </div>
   );
@@ -294,10 +331,14 @@ const bucketColors: Record<string, string> = {
   current: 'text-green-600', '1_30': 'text-amber-600', '31_60': 'text-orange-600', '61_90': 'text-red-500', '90_plus': 'text-red-700',
 };
 
-function AgingTable({ data, type }: { data: any; type: 'ar' | 'ap' }) {
+function AgingTable({ data, type, onPageChange }: { data: any; type: 'ar' | 'ap'; onPageChange: (page: number, view: 'summary' | 'detail') => void }) {
   const isAR = type === 'ar';
-  const rows = isAR ? data?.by_customer : data?.by_vendor;
-  const details = isAR ? data?.invoices : data?.purchase_orders;
+  const summaryData = isAR ? data?.by_customer : data?.by_vendor;
+  const detailData = isAR ? data?.invoices : data?.purchase_orders;
+  const rows = summaryData?.data || summaryData || [];
+  const details = detailData?.data || detailData || [];
+  const summaryPagination = summaryData?.pagination;
+  const detailPagination = detailData?.pagination;
   const [view, setView] = useState<'summary' | 'detail'>('summary');
 
   return (
@@ -392,6 +433,12 @@ function AgingTable({ data, type }: { data: any; type: 'ar' | 'ap' }) {
             </tbody>
           </table>
         )}
+        {view === 'summary' && summaryPagination && (
+          <Pagination page={summaryPagination.page} totalPages={summaryPagination.totalPages} total={summaryPagination.total} limit={summaryPagination.limit} onPageChange={(p) => onPageChange(p, 'summary')} />
+        )}
+        {view === 'detail' && detailPagination && (
+          <Pagination page={detailPagination.page} totalPages={detailPagination.totalPages} total={detailPagination.total} limit={detailPagination.limit} onPageChange={(p) => onPageChange(p, 'detail')} />
+        )}
       </div>
     </div>
   );
@@ -400,17 +447,39 @@ function AgingTable({ data, type }: { data: any; type: 'ar' | 'ap' }) {
 function AccountsReceivableReport() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { api.get('/reports/accounts-receivable').then((res) => setData(res.data)).finally(() => setLoading(false)); }, []);
-  if (loading) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
-  return <AgingTable data={data} type="ar" />;
+
+  const fetchData = useCallback(async (page = 1, view: 'summary' | 'detail' = 'summary') => {
+    setLoading(true);
+    try {
+      const res = await api.get('/reports/accounts-receivable', { params: { page, limit: 25, view } });
+      setData(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  if (loading && !data) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
+  return <AgingTable data={data} type="ar" onPageChange={(p, v) => fetchData(p, v)} />;
 }
 
 function AccountsPayableReport() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { api.get('/reports/accounts-payable').then((res) => setData(res.data)).finally(() => setLoading(false)); }, []);
-  if (loading) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
-  return <AgingTable data={data} type="ap" />;
+
+  const fetchData = useCallback(async (page = 1, view: 'summary' | 'detail' = 'summary') => {
+    setLoading(true);
+    try {
+      const res = await api.get('/reports/accounts-payable', { params: { page, limit: 25, view } });
+      setData(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  if (loading && !data) return <div className="bg-white rounded-xl border p-8 text-center text-gray-500">Loading...</div>;
+  return <AgingTable data={data} type="ap" onPageChange={(p, v) => fetchData(p, v)} />;
 }
 
 function ReorderSuggestionsReport() {
@@ -418,11 +487,18 @@ function ReorderSuggestionsReport() {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  const fetchData = () => {
-    api.get('/reports/reorder-suggestions').then((res) => setData(res.data)).finally(() => setLoading(false));
-  };
-  useEffect(() => { fetchData(); }, []);
+  const fetchData = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/reports/reorder-suggestions', { params: { page, limit: 25 } });
+      setData(res.data.data);
+      setPagination(res.data.pagination);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const withUsage = data.filter((d) => d.has_usage_data);
   const withDifference = withUsage.filter((d) => d.difference !== 0);
@@ -558,6 +634,7 @@ function ReorderSuggestionsReport() {
             })}
           </tbody>
         </table>
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchData(p)} />
       </div>
     </div>
   );

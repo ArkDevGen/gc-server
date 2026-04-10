@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { Plus, ClipboardList, Play, CheckCircle, Send } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -15,11 +16,18 @@ export default function PhysicalCounts() {
   const [counts, setCounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  const fetchCounts = () => {
-    api.get('/counts').then((res) => setCounts(res.data)).catch(() => {}).finally(() => setLoading(false));
-  };
-  useEffect(() => { fetchCounts(); }, []);
+  const fetchCounts = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/counts', { params: { page, limit: 25 } });
+      setCounts(res.data.data);
+      setPagination(res.data.pagination);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { fetchCounts(); }, [fetchCounts]);
 
   return (
     <div>
@@ -77,6 +85,7 @@ export default function PhysicalCounts() {
             ))}
           </tbody>
         </table>
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchCounts(p)} />
       </div>
 
       {showCreate && <CreateCountModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchCounts(); }} />}
