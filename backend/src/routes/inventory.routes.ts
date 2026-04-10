@@ -67,14 +67,18 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     const categoryId = req.query.category_id as string;
     const itemType = req.query.item_type as string;
     const locationId = req.query.location_id as string;
+    const vendorId = req.query.vendor_id as string;
     const lowStock = req.query.low_stock === 'true';
+    const hasStock = req.query.has_stock as string; // 'true' = only items with stock, 'false' = zero stock
+    const sortBy = req.query.sort_by as string || 'name';
+    const sortDir = (req.query.sort_dir as string || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
     let where = 'WHERE i.is_active = true';
     const params: any[] = [];
     let paramIdx = 1;
 
     if (search) {
-      where += ` AND (i.name ILIKE $${paramIdx} OR i.sku ILIKE $${paramIdx})`;
+      where += ` AND (i.name ILIKE $${paramIdx} OR i.sku ILIKE $${paramIdx} OR i.description ILIKE $${paramIdx})`;
       params.push(`%${search}%`);
       paramIdx++;
     }
@@ -88,33 +92,71 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
       params.push(itemType);
       paramIdx++;
     }
+    if (vendorId) {
+      where += ` AND i.preferred_vendor_id = $${paramIdx}`;
+      params.push(vendorId);
+      paramIdx++;
+    }
 
     if (locationId) {
       params.push(locationId);
       paramIdx++;
     }
 
-    // Base query with aggregated stock
-    const countQuery = `
-      SELECT COUNT(DISTINCT i.id) FROM items i
-      ${locationId ? `JOIN item_locations il ON il.item_id = i.id AND il.location_id = $${paramIdx - 1}` : ''}
-      ${where}
-    `;
+    // Build HAVING clause
+    const havingClauses: string[] = [];
+    if (lowStock) havingClauses.push('COALESCE(SUM(allil.qty_on_hand), 0) <= i.reorder_point');
+    if (hasStock === 'true') havingClauses.push('COALESCE(SUM(allil.qty_on_hand), 0) > 0');
+    if (hasStock === 'false') havingClauses.push('COALESCE(SUM(allil.qty_on_hand), 0) = 0');
+    const havingClause = havingClauses.length > 0 ? `HAVING ${havingClauses.join(' AND ')}` : '';
 
-    const dataQuery = `
-      SELECT i.*,
-        c.name as category_name,
-        COALESCE(SUM(allil.qty_on_hand), 0) as total_on_hand,
-        COALESCE(SUM(allil.qty_available), 0) as total_available,
-        COALESCE(SUM(allil.qty_reserved), 0) as total_reserved
+    // Sort mapping
+    const sortColumns: Record<string, string> = {
+      name: 'i.name',
+      sku: 'i.sku',
+      category: 'c.name',
+      type: 'i.item_type',
+      cost: 'i.cost_price',
+      price: 'i.sell_price',
+      on_hand: 'total_on_hand',
+      available: 'total_available',
+      reorder_point: 'i.reorder_point',
+      created: 'i.created_at',
+      updated: 'i.updated_at',
+    };
+    const orderCol = sortColumns[sortBy] || 'i.name';
+    // For aggregated columns, use alias in ORDER BY
+    const orderExpr = ['total_on_hand', 'total_available'].includes(orderCol) ? orderCol : orderCol;
+
+    // Count query (wrapping full query to account for HAVING)
+    const innerQuery = `
+      SELECT i.id
       FROM items i
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN item_locations allil ON allil.item_id = i.id
       ${locationId ? `JOIN item_locations il ON il.item_id = i.id AND il.location_id = $${paramIdx - 1}` : ''}
       ${where}
       GROUP BY i.id, c.name
-      ${lowStock ? 'HAVING COALESCE(SUM(allil.qty_on_hand), 0) <= i.reorder_point' : ''}
-      ORDER BY i.name
+      ${havingClause}
+    `;
+    const countQuery = `SELECT COUNT(*) FROM (${innerQuery}) sub`;
+
+    const dataQuery = `
+      SELECT i.*,
+        c.name as category_name,
+        v.name as vendor_name,
+        COALESCE(SUM(allil.qty_on_hand), 0) as total_on_hand,
+        COALESCE(SUM(allil.qty_available), 0) as total_available,
+        COALESCE(SUM(allil.qty_reserved), 0) as total_reserved
+      FROM items i
+      LEFT JOIN categories c ON i.category_id = c.id
+      LEFT JOIN vendors v ON i.preferred_vendor_id = v.id
+      LEFT JOIN item_locations allil ON allil.item_id = i.id
+      ${locationId ? `JOIN item_locations il ON il.item_id = i.id AND il.location_id = $${paramIdx - 1}` : ''}
+      ${where}
+      GROUP BY i.id, c.name, v.name
+      ${havingClause}
+      ORDER BY ${orderExpr} ${sortDir} NULLS LAST
       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
     `;
 

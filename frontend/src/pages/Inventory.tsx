@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
-import { Search, Plus, Filter, AlertTriangle, Package } from 'lucide-react';
+import { Search, Plus, AlertTriangle, Package, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 interface Item {
   id: string;
@@ -9,6 +10,7 @@ interface Item {
   name: string;
   item_type: string;
   category_name: string;
+  vendor_name: string;
   unit_of_measure: string;
   cost_price: string;
   sell_price: string;
@@ -17,37 +19,38 @@ interface Item {
   reorder_point: number;
 }
 
-interface Category {
-  id: string;
-  name: string;
-}
-
-interface Location {
-  id: string;
-  name: string;
-}
+interface Category { id: string; name: string; }
+interface Location { id: string; name: string; }
+interface Vendor { id: string; name: string; }
 
 export default function Inventory() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState<Item[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [lowStock, setLowStock] = useState(searchParams.get('low_stock') === 'true');
+  const [vendorFilter, setVendorFilter] = useState('');
+  const [stockFilter, setStockFilter] = useState(''); // '' | 'low' | 'in_stock' | 'no_stock'
+  const [sortBy, setSortBy] = useState('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchItems = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const params: any = { page, limit: 25 };
+      const params: any = { page, limit: 25, sort_by: sortBy, sort_dir: sortDir };
       if (search) params.search = search;
       if (categoryFilter) params.category_id = categoryFilter;
       if (typeFilter) params.item_type = typeFilter;
-      if (lowStock) params.low_stock = true;
+      if (vendorFilter) params.vendor_id = vendorFilter;
+      if (stockFilter === 'low') params.low_stock = true;
+      if (stockFilter === 'in_stock') params.has_stock = 'true';
+      if (stockFilter === 'no_stock') params.has_stock = 'false';
 
       const res = await api.get('/items', { params });
       setItems(res.data.data);
@@ -57,88 +60,105 @@ export default function Inventory() {
     } finally {
       setLoading(false);
     }
-  }, [search, categoryFilter, typeFilter, lowStock]);
+  }, [search, categoryFilter, typeFilter, vendorFilter, stockFilter, sortBy, sortDir]);
 
-  useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   useEffect(() => {
     Promise.all([
       api.get('/items/categories/list'),
       api.get('/items/locations/list'),
-    ]).then(([catRes, locRes]) => {
+      api.get('/vendors'),
+    ]).then(([catRes, locRes, venRes]) => {
       setCategories(catRes.data);
       setLocations(locRes.data);
+      setVendors(venRes.data);
     }).catch(() => {});
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchItems(1);
+  const handleSearch = (e: React.FormEvent) => { e.preventDefault(); fetchItems(1); };
+
+  const toggleSort = (col: string) => {
+    if (sortBy === col) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(col);
+      setSortDir('asc');
+    }
   };
+
+  const SortIcon = ({ col }: { col: string }) => {
+    if (sortBy !== col) return <ArrowUpDown size={12} className="text-gray-300" />;
+    return sortDir === 'asc' ? <ArrowUp size={12} className="text-primary-600" /> : <ArrowDown size={12} className="text-primary-600" />;
+  };
+
+  const SortHeader = ({ col, label, align = 'left' }: { col: string; label: string; align?: string }) => (
+    <th className={`text-${align} px-4 py-3 font-medium text-gray-600 cursor-pointer hover:text-gray-900 select-none`}
+      onClick={() => toggleSort(col)}>
+      <span className="inline-flex items-center gap-1">
+        {label} <SortIcon col={col} />
+      </span>
+    </th>
+  );
+
+  const hasFilters = categoryFilter || typeFilter || vendorFilter || stockFilter;
+  const clearFilters = () => { setCategoryFilter(''); setTypeFilter(''); setVendorFilter(''); setStockFilter(''); };
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
-        >
+        <button onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium">
           <Plus size={16} /> Add Item
         </button>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-xl border p-4 mb-4">
-        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by name or SKU..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-            />
+        <form onSubmit={handleSearch} className="space-y-3">
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="text" placeholder="Search by name, SKU, or description..."
+                value={search} onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none" />
+            </div>
+            <button type="submit" className="px-4 py-2 bg-primary-600 text-white hover:bg-primary-700 rounded-lg text-sm font-medium transition-colors">Search</button>
           </div>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-2 border rounded-lg text-sm bg-white"
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 border rounded-lg text-sm bg-white"
-          >
-            <option value="">All Types</option>
-            <option value="inventory">Inventory</option>
-            <option value="non_inventory">Non-Inventory</option>
-            <option value="surplus">Surplus</option>
-            <option value="service">Service</option>
-          </select>
-          <label className="flex items-center gap-2 text-sm text-gray-600 whitespace-nowrap">
-            <input
-              type="checkbox"
-              checked={lowStock}
-              onChange={(e) => setLowStock(e.target.checked)}
-              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-            Low Stock Only
-          </label>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
-          >
-            Search
-          </button>
+          <div className="flex flex-wrap gap-3 items-center">
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+              <option value="">All Categories</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
+              className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+              <option value="">All Types</option>
+              <option value="inventory">Inventory</option>
+              <option value="non_inventory">Non-Inventory</option>
+              <option value="surplus">Surplus</option>
+              <option value="service">Service</option>
+            </select>
+            <select value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)}
+              className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+              <option value="">All Vendors</option>
+              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+            <select value={stockFilter} onChange={(e) => setStockFilter(e.target.value)}
+              className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+              <option value="">All Stock Levels</option>
+              <option value="low">Low Stock</option>
+              <option value="in_stock">In Stock</option>
+              <option value="no_stock">No Stock</option>
+            </select>
+            {hasFilters && (
+              <button type="button" onClick={clearFilters}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                <X size={14} /> Clear Filters
+              </button>
+            )}
+          </div>
         </form>
       </div>
 
@@ -148,14 +168,14 @@ export default function Inventory() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Category</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">On Hand</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Available</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Cost</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Price</th>
+                <SortHeader col="sku" label="SKU" />
+                <SortHeader col="name" label="Name" />
+                <SortHeader col="category" label="Category" />
+                <SortHeader col="type" label="Type" />
+                <SortHeader col="on_hand" label="On Hand" align="right" />
+                <SortHeader col="available" label="Available" align="right" />
+                <SortHeader col="cost" label="Cost" align="right" />
+                <SortHeader col="price" label="Price" align="right" />
                 <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
               </tr>
             </thead>
@@ -230,31 +250,8 @@ export default function Inventory() {
           </table>
         </div>
 
-        {/* Pagination */}
-        {pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t">
-            <p className="text-sm text-gray-600">
-              Showing {(pagination.page - 1) * pagination.limit + 1}-
-              {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => fetchItems(pagination.page - 1)}
-                disabled={pagination.page <= 1}
-                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => fetchItems(pagination.page + 1)}
-                disabled={pagination.page >= pagination.totalPages}
-                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total}
+          limit={pagination.limit} onPageChange={(p) => fetchItems(p)} />
       </div>
 
       {/* Add Item Modal */}
