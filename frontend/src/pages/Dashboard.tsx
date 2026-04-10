@@ -69,7 +69,7 @@ export default function Dashboard() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[
-            { to: '/quotes', icon: FileText, label: 'Create Quote' },
+            { to: '/quotes?new=1', icon: FileText, label: 'Create Quote' },
             { to: '/inventory', icon: Package, label: 'Manage Inventory' },
             { to: '/builds', icon: Hammer, label: 'View Builds' },
             { to: '/transfers', icon: ArrowLeftRight, label: 'Transfer Inventory' },

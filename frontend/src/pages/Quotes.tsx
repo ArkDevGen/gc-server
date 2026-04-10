@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import { Plus, FileText } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
@@ -14,10 +14,18 @@ const statusColors: Record<string, string> = {
 };
 
 export default function Quotes() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [quotes, setQuotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
+  const [showCreate, setShowCreate] = useState(searchParams.get('new') === '1');
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
+
+  // Clear the ?new=1 param after opening
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   const fetchQuotes = useCallback(async (page = 1) => {
     setLoading(true);

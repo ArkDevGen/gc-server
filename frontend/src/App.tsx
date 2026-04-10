@@ -15,6 +15,7 @@ import Surplus from './pages/Surplus';
 import Reports from './pages/Reports';
 import PhysicalCounts from './pages/PhysicalCounts';
 import CountDetail from './pages/CountDetail';
+import QuoteDetail from './pages/QuoteDetail';
 import Features from './pages/Features';
 import Settings from './pages/Settings';
 
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/inventory/:id" element={<InventoryDetail />} />
         <Route path="/quotes" element={<Quotes />} />
+        <Route path="/quotes/:id" element={<QuoteDetail />} />
         <Route path="/builds" element={<Builds />} />
         <Route path="/builds/:id" element={<BuildDetail />} />
         <Route path="/purchase-orders" element={<PurchaseOrders />} />
