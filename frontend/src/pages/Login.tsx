@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Package } from 'lucide-react';
 
 export default function Login() {
   const { login } = useAuth();
@@ -27,9 +26,12 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-600 text-white mb-4">
-            <Package size={32} />
-          </div>
+          <img
+            src="/goodman-classic-logo.jpg"
+            alt="Goodman Classic Buildings & Equipment"
+            className="w-56 mx-auto mb-4"
+          />
+          <div className="h-1 w-24 bg-primary-600 mx-auto mb-4 rounded-full" />
           <h1 className="text-2xl font-bold text-gray-900">GC Inventory Hub</h1>
           <p className="text-gray-500 mt-1">Sign in to your account</p>
         </div>
