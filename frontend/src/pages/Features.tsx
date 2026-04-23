@@ -20,7 +20,7 @@ const activeFeatures = [
   { icon: CheckCircle, label: 'CSV Import', desc: 'One-time data migration from existing systems' },
 ];
 
-const comingSoonFeatures = [
+const premiumFeatures = [
   {
     icon: Scan,
     label: 'Barcode / QR Scanning',
@@ -93,6 +93,9 @@ const comingSoonFeatures = [
     desc: 'Track warranties on items sold to customers. Get notified before warranties expire.',
     category: 'Customer Service',
   },
+];
+
+const comingSoonFeatures = [
   {
     icon: Globe,
     label: 'QuickBooks Online Integration',
@@ -107,13 +110,14 @@ const comingSoonFeatures = [
   },
 ];
 
-const categories = [...new Set(comingSoonFeatures.map((f) => f.category))];
+const premiumCategories = [...new Set(premiumFeatures.map((f) => f.category))];
+const comingSoonCategories = [...new Set(comingSoonFeatures.map((f) => f.category))];
 
 export default function Features() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Features</h1>
-      <p className="text-gray-500 mb-8">Everything GC Inventory Hub can do for your business — plus premium features available on request.</p>
+      <p className="text-gray-500 mb-8">Everything GC Inventory Hub can do today — plus integrations coming soon and premium features available on request.</p>
 
       {/* Active Features */}
       <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -139,11 +143,11 @@ export default function Features() {
       </h2>
       <p className="text-sm text-gray-500 mb-4">Optional capabilities that can be added to your system — not on the roadmap by default, but ready to build when you are.</p>
 
-      {categories.map((cat) => (
+      {premiumCategories.map((cat) => (
         <div key={cat} className="mb-6">
           <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">{cat}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {comingSoonFeatures.filter((f) => f.category === cat).map((f) => (
+            {premiumFeatures.filter((f) => f.category === cat).map((f) => (
               <div key={f.label} className="bg-white border border-dashed border-gray-300 rounded-xl p-4 opacity-80">
                 <div className="flex items-start gap-3">
                   <f.icon size={18} className="text-amber-500 mt-0.5 shrink-0" />
@@ -151,6 +155,34 @@ export default function Features() {
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-gray-900 text-sm">{f.label}</p>
                       <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">Premium</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{f.desc}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* Coming Soon */}
+      <h2 className="text-lg font-semibold text-gray-900 mb-2 mt-4 flex items-center gap-2">
+        <Lock size={20} className="text-blue-500" /> Coming Soon
+      </h2>
+      <p className="text-sm text-gray-500 mb-4">Integrations actively on the roadmap — these will be added to your system as part of the build.</p>
+
+      {comingSoonCategories.map((cat) => (
+        <div key={cat} className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">{cat}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {comingSoonFeatures.filter((f) => f.category === cat).map((f) => (
+              <div key={f.label} className="bg-white border border-dashed border-blue-300 rounded-xl p-4 opacity-80">
+                <div className="flex items-start gap-3">
+                  <f.icon size={18} className="text-blue-500 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 text-sm">{f.label}</p>
+                      <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">Coming Soon</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">{f.desc}</p>
                   </div>
