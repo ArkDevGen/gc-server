@@ -113,7 +113,7 @@ export default function Features() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Features</h1>
-      <p className="text-gray-500 mb-8">Everything GC Inventory Hub can do for your business — and what's coming next.</p>
+      <p className="text-gray-500 mb-8">Everything GC Inventory Hub can do for your business — plus premium features available on request.</p>
 
       {/* Active Features */}
       <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -133,10 +133,11 @@ export default function Features() {
         ))}
       </div>
 
-      {/* Coming Soon */}
-      <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <Lock size={20} className="text-amber-500" /> Coming Soon
+      {/* Premium Features */}
+      <h2 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <Lock size={20} className="text-amber-500" /> Premium Features Available
       </h2>
+      <p className="text-sm text-gray-500 mb-4">Optional capabilities that can be added to your system — not on the roadmap by default, but ready to build when you are.</p>
 
       {categories.map((cat) => (
         <div key={cat} className="mb-6">
@@ -149,7 +150,7 @@ export default function Features() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-gray-900 text-sm">{f.label}</p>
-                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">Coming Soon</span>
+                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">Premium</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">{f.desc}</p>
                   </div>
