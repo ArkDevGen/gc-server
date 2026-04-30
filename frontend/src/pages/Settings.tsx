@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Users, MapPin, FolderTree, FileUp, Copy, Upload, CheckCircle, AlertTriangle } from 'lucide-react';
+import {
+  Users, MapPin, FolderTree, FileUp, Copy, Upload, CheckCircle, AlertTriangle,
+  Truck, Plus, Search, Edit2, X,
+} from 'lucide-react';
 
-type TabKey = 'users' | 'locations' | 'categories' | 'templates' | 'import';
+type TabKey = 'users' | 'locations' | 'categories' | 'vendors' | 'templates' | 'import';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -41,6 +44,7 @@ export default function Settings() {
     ...(isAdmin ? [{ key: 'users' as TabKey, label: 'Users', icon: Users, adminOnly: true }] : []),
     { key: 'locations', label: 'Locations', icon: MapPin },
     { key: 'categories', label: 'Categories', icon: FolderTree },
+    { key: 'vendors', label: 'Vendors', icon: Truck },
     { key: 'templates', label: 'Templates', icon: Copy },
     ...(isAdmin ? [{ key: 'import' as TabKey, label: 'Import Data', icon: FileUp, adminOnly: true }] : []),
   ];
@@ -71,6 +75,8 @@ export default function Settings() {
           <LocationsTable locations={locations} />
         ) : tab === 'categories' ? (
           <CategoriesTable categories={categories} />
+        ) : tab === 'vendors' ? (
+          <VendorsPanel />
         ) : tab === 'templates' ? (
           <TemplatesPanel templates={templates} onRefresh={fetchData} />
         ) : tab === 'import' ? (
@@ -360,7 +366,13 @@ function ImportPanel() {
           <p className="font-medium mb-1">Expected CSV columns:</p>
           {importType === 'items' && <p>name (or item_name), sku, description, category, cost_price (or cost), sell_price (or price), reorder_point</p>}
           {importType === 'customers' && <p>name (or customer_name), email, phone, address</p>}
-          {importType === 'vendors' && <p>name (or vendor_name), email, phone, address</p>}
+          {importType === 'vendors' && (
+            <p>
+              name (or <span className="font-mono">vendor</span> / vendor_name / supplier),
+              contact (or contact_name), email, phone, mobile (or mobile_phone),
+              enabled (Yes/No → active flag), address, website
+            </p>
+          )}
         </div>
       </div>
 
@@ -381,12 +393,29 @@ function ImportPanel() {
                 <div><span className="text-amber-600">Skipped:</span> {result.skipped}</div>
                 <div><span className="text-red-600">Errors:</span> {result.errored}</div>
               </div>
+              {typeof result.deactivated === 'number' && result.deactivated > 0 && (
+                <p className="mt-2 text-xs text-gray-600">
+                  {result.deactivated} of the imported rows were marked inactive (Enabled = No).
+                </p>
+              )}
               {result.errors?.length > 0 && (
                 <div className="mt-2 text-xs text-red-600">
                   {result.errors.map((e: any, i: number) => (
                     <p key={i}>Row {e.row}: {e.error}</p>
                   ))}
                 </div>
+              )}
+              {result.skipped_details?.length > 0 && (
+                <details className="mt-2">
+                  <summary className="text-xs text-amber-700 cursor-pointer">
+                    Show skipped rows ({result.skipped_details.length})
+                  </summary>
+                  <div className="mt-1 max-h-40 overflow-y-auto text-xs text-gray-600 bg-white rounded p-2 border">
+                    {result.skipped_details.map((s: any, i: number) => (
+                      <p key={i}>Row {s.row}: {s.name} <span className="text-gray-400">({s.reason})</span></p>
+                    ))}
+                  </div>
+                </details>
               )}
             </div>
           )}
@@ -422,6 +451,259 @@ function ImportPanel() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// VENDORS PANEL
+// ============================================================================
+
+interface Vendor {
+  id: string;
+  name: string;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  mobile_phone: string | null;
+  address: string | null;
+  website: string | null;
+  is_active: boolean;
+}
+
+function VendorsPanel() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'admin' || user?.role === 'office';
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
+  const [editing, setEditing] = useState<Vendor | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+
+  const fetchVendors = () => {
+    setLoading(true);
+    api.get('/vendors', { params: { include_inactive: showInactive } })
+      .then((res) => setVendors(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchVendors(); }, [showInactive]);
+
+  const filtered = vendors.filter((v) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return v.name.toLowerCase().includes(q)
+      || (v.contact_name?.toLowerCase().includes(q) ?? false)
+      || (v.email?.toLowerCase().includes(q) ?? false);
+  });
+
+  return (
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b">
+        <p className="text-sm text-gray-600">{vendors.length} vendors{showInactive ? '' : ' (active)'}</p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..."
+              className="pl-8 pr-3 py-1.5 border rounded-lg text-sm w-56" />
+          </div>
+          <label className="flex items-center gap-1.5 text-sm text-gray-600">
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+            Show inactive
+          </label>
+          {canEdit && (
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700">
+              <Plus size={14} /> New Vendor
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b">
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Contact</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Mobile</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+              {canEdit && <th className="px-4 py-3"></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                <Truck size={32} className="mx-auto mb-2 text-gray-300" />
+                No vendors found
+              </td></tr>
+            ) : filtered.map((v) => (
+              <tr key={v.id} className="border-b last:border-0 hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium">{v.name}</td>
+                <td className="px-4 py-3 text-gray-600">{v.contact_name || '--'}</td>
+                <td className="px-4 py-3 font-mono text-xs text-gray-600">{v.phone || '--'}</td>
+                <td className="px-4 py-3 font-mono text-xs text-gray-600">{v.mobile_phone || '--'}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs">{v.email || '--'}</td>
+                <td className="px-4 py-3 text-center">
+                  <span className={`text-xs font-medium ${v.is_active ? 'text-green-600' : 'text-gray-400'}`}>
+                    {v.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                {canEdit && (
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => setEditing(v)} className="text-primary-600 hover:text-primary-700">
+                      <Edit2 size={14} />
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showCreate && (
+        <VendorModal vendor={null}
+          onClose={() => setShowCreate(false)}
+          onSaved={() => { setShowCreate(false); fetchVendors(); }} />
+      )}
+      {editing && (
+        <VendorModal vendor={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); fetchVendors(); }} />
+      )}
+    </div>
+  );
+}
+
+function VendorModal({ vendor, onClose, onSaved }: {
+  vendor: Vendor | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!vendor;
+  const [form, setForm] = useState({
+    name: vendor?.name || '',
+    contact_name: vendor?.contact_name || '',
+    email: vendor?.email || '',
+    phone: vendor?.phone || '',
+    mobile_phone: vendor?.mobile_phone || '',
+    address: vendor?.address || '',
+    website: vendor?.website || '',
+    is_active: vendor?.is_active ?? true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true); setError('');
+    try {
+      const payload: any = { ...form };
+      // Strip empty strings so backend treats them as null
+      Object.keys(payload).forEach((k) => {
+        if (typeof payload[k] === 'string' && payload[k].trim() === '') payload[k] = null;
+      });
+      if (isEdit) {
+        await api.patch(`/vendors/${vendor!.id}`, payload);
+      } else {
+        await api.post('/vendors', payload);
+      }
+      onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold">{isEdit ? 'Edit Vendor' : 'New Vendor'}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input value={form.name} required
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+              <input value={form.contact_name}
+                onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg text-sm" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
+              <input value={form.mobile_phone}
+                onChange={(e) => setForm({ ...form, mobile_phone: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+            <input value={form.website} placeholder="https://"
+              onChange={(e) => setForm({ ...form, website: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <textarea value={form.address} rows={2}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={form.is_active}
+              onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
+            Active
+          </label>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 border rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Vendor'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

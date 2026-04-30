@@ -189,23 +189,68 @@ router.post('/vendors', requireAuth, requireRole(UserRole.ADMIN), upload.single(
       if (rows.length === 0) return res.status(400).json({ error: 'CSV is empty or invalid' });
 
       await client.query('BEGIN');
-      let imported = 0, skipped = 0, errored = 0;
+      let imported = 0, skipped = 0, errored = 0, deactivated = 0;
       const errors: any[] = [];
+      const skippedRows: any[] = [];
+
+      // Track names already seen in THIS file so we don't import duplicates from the file itself
+      const seenNames = new Set<string>();
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         try {
-          const name = row.name || row.vendor_name || row.company || row.supplier;
-          if (!name) { skipped++; continue; }
+          // Recognize the Goodman Classic export header "Vendor" plus common alternates
+          const name = row.name || row.vendor_name || row.vendor || row.company || row.supplier;
+          if (!name || name.trim() === '') {
+            skipped++;
+            continue;
+          }
+          const trimmedName = name.trim();
 
-          const existing = await client.query('SELECT id FROM vendors WHERE LOWER(name) = LOWER($1)', [name]);
-          if (existing.rows.length > 0) { skipped++; continue; }
+          // Skip obviously-junk placeholder rows (e.g. "Blank", "Blank2", "None", short stub strings)
+          if (/^(blank\d*|none|n\/a|test\d*|cho|chore|big|lb|qc|northwest|valco|lub|sdi)$/i.test(trimmedName)) {
+            skipped++;
+            skippedRows.push({ row: i + 2, name: trimmedName, reason: 'placeholder/stub' });
+            continue;
+          }
+
+          const lowerName = trimmedName.toLowerCase();
+
+          // De-dupe within the file itself
+          if (seenNames.has(lowerName)) {
+            skipped++;
+            skippedRows.push({ row: i + 2, name: trimmedName, reason: 'duplicate in file' });
+            continue;
+          }
+          seenNames.add(lowerName);
+
+          // De-dupe against existing rows in the database
+          const existing = await client.query('SELECT id FROM vendors WHERE LOWER(name) = LOWER($1)', [trimmedName]);
+          if (existing.rows.length > 0) {
+            skipped++;
+            skippedRows.push({ row: i + 2, name: trimmedName, reason: 'already exists in system' });
+            continue;
+          }
+
+          // Map Goodman Classic export columns
+          const contactName = (row.contact_name || row.contact || '').trim() || null;
+          const phone = (row.phone || row.phone_number || '').trim() || null;
+          const mobile = (row.mobile_phone || row.mobile || row.cell || '').trim() || null;
+          const email = (row.email || '').trim() || null;
+          const address = (row.address || '').trim() || null;
+          const website = (row.website || row.url || '').trim() || null;
+
+          // Honor Enabled column (Yes/No) → is_active
+          const enabledRaw = (row.enabled || row.active || row.is_active || 'yes').toString().trim().toLowerCase();
+          const isActive = !(enabledRaw === 'no' || enabledRaw === 'false' || enabledRaw === '0');
 
           await client.query(
-            'INSERT INTO vendors (name, email, phone, address) VALUES ($1, $2, $3, $4)',
-            [name, row.email || null, row.phone || null, row.address || null]
+            `INSERT INTO vendors (name, contact_name, email, phone, mobile_phone, address, website, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [trimmedName, contactName, email, phone, mobile, address, website, isActive]
           );
           imported++;
+          if (!isActive) deactivated++;
         } catch (err: any) {
           errored++;
           errors.push({ row: i + 2, error: err.message });
@@ -215,11 +260,20 @@ router.post('/vendors', requireAuth, requireRole(UserRole.ADMIN), upload.single(
       await client.query(
         `INSERT INTO import_log (import_type, filename, rows_total, rows_imported, rows_skipped, rows_errored, errors, imported_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        ['vendors', file.originalname, rows.length, imported, skipped, errored, JSON.stringify(errors), req.user!.userId]
+        ['vendors', file.originalname, rows.length, imported, skipped, errored,
+         JSON.stringify({ errors, skipped: skippedRows.slice(0, 50) }), req.user!.userId]
       );
 
       await client.query('COMMIT');
-      res.json({ total: rows.length, imported, skipped, errored, errors: errors.slice(0, 20) });
+      res.json({
+        total: rows.length,
+        imported,
+        skipped,
+        errored,
+        deactivated,
+        errors: errors.slice(0, 20),
+        skipped_details: skippedRows.slice(0, 50),
+      });
     } catch (err) {
       await client.query('ROLLBACK');
       next(err);
