@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
-import { BarChart3, AlertTriangle, DollarSign, Recycle, Hammer, ArrowDownToLine, ArrowUpFromLine, TrendingUp } from 'lucide-react';
+import { Search, AlertTriangle, DollarSign, Recycle, Hammer, ArrowDownToLine, ArrowUpFromLine, TrendingUp, MapPin } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 
-type ReportTab = 'accounts-receivable' | 'accounts-payable' | 'reorder-suggestions' | 'inventory-value' | 'low-stock' | 'build-variance' | 'surplus-aging';
+type ReportTab = 'accounts-receivable' | 'accounts-payable' | 'reorder-suggestions' | 'inventory-value' | 'inventory-by-location' | 'low-stock' | 'build-variance' | 'surplus-aging';
 
 export default function Reports() {
   const [tab, setTab] = useState<ReportTab>('accounts-receivable');
@@ -13,6 +13,7 @@ export default function Reports() {
     { key: 'accounts-payable', label: 'Accounts Payable', icon: ArrowUpFromLine },
     { key: 'reorder-suggestions', label: 'Reorder Suggestions', icon: TrendingUp },
     { key: 'inventory-value', label: 'Inventory Value', icon: DollarSign },
+    { key: 'inventory-by-location', label: 'Inventory by Location', icon: MapPin },
     { key: 'low-stock', label: 'Low Stock', icon: AlertTriangle },
     { key: 'build-variance', label: 'Build Variance', icon: Hammer },
     { key: 'surplus-aging', label: 'Surplus Aging', icon: Recycle },
@@ -39,9 +40,111 @@ export default function Reports() {
       {tab === 'accounts-payable' && <AccountsPayableReport />}
       {tab === 'reorder-suggestions' && <ReorderSuggestionsReport />}
       {tab === 'inventory-value' && <InventoryValueReport />}
+      {tab === 'inventory-by-location' && <InventoryByLocationReport />}
       {tab === 'low-stock' && <LowStockReport />}
       {tab === 'build-variance' && <BuildVarianceReport />}
       {tab === 'surplus-aging' && <SurplusAgingReport />}
+    </div>
+  );
+}
+
+function InventoryByLocationReport() {
+  const [data, setData] = useState<any[]>([]);
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 });
+
+  const fetchData = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const params: any = { page, limit: 50 };
+      if (search) params.search = search;
+      if (categoryFilter) params.category_id = categoryFilter;
+      const res = await api.get('/reports/inventory-by-location', { params });
+      setLocations(res.data.locations);
+      setData(res.data.data);
+      setPagination(res.data.pagination);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, [search, categoryFilter]);
+
+  useEffect(() => { fetchData(); }, [categoryFilter]);
+
+  useEffect(() => {
+    api.get('/items/categories/list').then((res) => setCategories(res.data)).catch(() => {});
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white rounded-xl border p-4">
+        <form onSubmit={(e) => { e.preventDefault(); fetchData(1); }} className="flex flex-wrap gap-3 items-center">
+          <div className="flex-1 min-w-[240px] relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input type="text" placeholder="Search by item name or SKU..." value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm" />
+          </div>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+            <option value="">All Categories</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <button type="submit" className="px-4 py-2 bg-primary-600 text-white hover:bg-primary-700 rounded-lg text-sm font-medium">Search</button>
+        </form>
+      </div>
+
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                <th className="text-left px-4 py-3 font-medium text-gray-600 sticky left-0 bg-gray-50">Item</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Category</th>
+                {locations.map((l) => (
+                  <th key={l.id} className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{l.name}</th>
+                ))}
+                <th className="text-right px-4 py-3 font-medium text-gray-600 bg-gray-100">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={locations.length + 3} className="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+              ) : data.length === 0 ? (
+                <tr><td colSpan={locations.length + 3} className="px-4 py-8 text-center text-gray-500">No items found</td></tr>
+              ) : data.map((item) => {
+                const totalOnHand = parseFloat(item.total_on_hand);
+                const isLow = totalOnHand <= item.reorder_point && item.reorder_point > 0;
+                return (
+                  <tr key={item.id} className="border-b last:border-0 hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium sticky left-0 bg-white hover:bg-gray-50">
+                      {item.name}
+                      {item.sku && <span className="text-xs text-gray-400 ml-2 font-mono">{item.sku}</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">{item.category_name || '--'}</td>
+                    {locations.map((l) => {
+                      const stock = item.stock_by_location?.[l.id];
+                      const qty = stock ? parseFloat(stock.qty_on_hand) : 0;
+                      return (
+                        <td key={l.id} className={`px-4 py-3 text-right font-mono ${qty === 0 ? 'text-gray-300' : ''}`}>
+                          {qty.toLocaleString()}
+                        </td>
+                      );
+                    })}
+                    <td className={`px-4 py-3 text-right font-mono font-bold bg-gray-50 ${isLow ? 'text-amber-600' : ''}`}>
+                      {totalOnHand.toLocaleString()}
+                      {isLow && <span className="block text-[10px] text-amber-600 font-normal">Low</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchData(p)} />
+      </div>
     </div>
   );
 }

@@ -150,6 +150,71 @@ router.get('/inventory-value', requireAuth, async (_req: Request, res: Response,
   }
 });
 
+// GET /api/reports/inventory-by-location
+// Returns a wide grid: one row per item with stock at every location.
+router.get('/inventory-by-location', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+    const search = req.query.search as string;
+    const categoryId = req.query.category_id as string;
+
+    let where = 'WHERE i.is_active = true';
+    const params: any[] = [];
+    let idx = 1;
+    if (search) {
+      where += ` AND (i.name ILIKE $${idx} OR i.sku ILIKE $${idx})`;
+      params.push(`%${search}%`);
+      idx++;
+    }
+    if (categoryId) {
+      where += ` AND i.category_id = $${idx}`;
+      params.push(categoryId);
+      idx++;
+    }
+
+    const locationsRes = await query(
+      'SELECT id, name, location_type FROM locations WHERE is_active = true ORDER BY name'
+    );
+    const locations = locationsRes.rows;
+
+    const countRes = await query(`SELECT COUNT(*) FROM items i ${where}`, params);
+    const total = parseInt(countRes.rows[0].count, 10);
+
+    const itemsRes = await query(
+      `SELECT i.id, i.sku, i.name, i.unit_of_measure, i.cost_price, i.reorder_point,
+              c.name as category_name,
+              COALESCE(SUM(il.qty_on_hand), 0) as total_on_hand,
+              COALESCE(SUM(il.qty_on_hand * i.cost_price), 0) as total_value,
+              json_object_agg(
+                il.location_id,
+                json_build_object(
+                  'qty_on_hand', il.qty_on_hand,
+                  'qty_available', il.qty_available,
+                  'bin_label', il.bin_label
+                )
+              ) FILTER (WHERE il.id IS NOT NULL) as stock_by_location
+         FROM items i
+         LEFT JOIN categories c ON i.category_id = c.id
+         LEFT JOIN item_locations il ON il.item_id = i.id
+         ${where}
+         GROUP BY i.id, c.name
+         ORDER BY i.name
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, limit, offset]
+    );
+
+    res.json({
+      locations,
+      data: itemsRes.rows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/reports/surplus-aging
 router.get('/surplus-aging', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
