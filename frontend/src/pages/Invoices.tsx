@@ -4,6 +4,7 @@ import { Receipt } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
+import PageHelp from '../components/ui/PageHelp';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -55,6 +56,14 @@ export default function Invoices() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
       </div>
+
+      <PageHelp storageKey="invoices">
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>Create an invoice</strong> from a closed-out build (button on the build detail page) or manually for one-off charges.</li>
+          <li><strong>Status flow</strong>: Draft &rarr; Sent to QBO &rarr; Emailed &rarr; Viewed &rarr; Paid (or Overdue / Voided).</li>
+          <li><strong>Email tracking</strong>: when QBO emails the invoice, the Email column on this list shows whether it was sent and when the customer opened it.</li>
+        </ul>
+      </PageHelp>
 
       <FilterBar
         search={search}

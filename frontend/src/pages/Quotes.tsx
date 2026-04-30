@@ -5,6 +5,7 @@ import { Plus, FileText, Copy } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
+import PageHelp from '../components/ui/PageHelp';
 import { TemplatesManagerModal } from '../components/TemplatesManager';
 
 const statusColors: Record<string, string> = {
@@ -76,6 +77,16 @@ export default function Quotes() {
           </button>
         </div>
       </div>
+
+      <PageHelp storageKey="quotes" defaultOpen>
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>Create a quote</strong>: "+ New Quote" &rarr; pick customer, add line items (or "Load from Template" for common bundles), save.</li>
+          <li><strong>Quote Templates</strong>: top-right button &mdash; manage reusable line-item bundles (also accessible from Settings).</li>
+          <li><strong>Edit / send / accept</strong>: click a quote number to open it. Status flow is Draft &rarr; Sent &rarr; Accepted (or Rejected / Expired).</li>
+          <li><strong>Convert to a build</strong>: open the quote &rarr; "Convert to Build" once accepted. Materials get allocated automatically.</li>
+          <li><strong>Use surplus</strong>: when a line item has surplus available from a previous build, you'll see "Surplus available: N" with a toggle to consume from the pool at original cost.</li>
+        </ul>
+      </PageHelp>
 
       <FilterBar
         search={search}

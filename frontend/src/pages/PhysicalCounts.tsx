@@ -5,6 +5,7 @@ import { Plus, ClipboardList } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
+import PageHelp from '../components/ui/PageHelp';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -64,6 +65,15 @@ export default function PhysicalCounts() {
           <Plus size={16} /> New Count
         </button>
       </div>
+
+      <PageHelp storageKey="physical-counts">
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>Create a count</strong>: pick a location and optionally narrow by category or aisle. The system pre-loads every item at that location with its expected qty.</li>
+          <li><strong>Record counts</strong>: open the count, walk the floor, enter the actual qty for each line. Variances are highlighted in real time.</li>
+          <li><strong>Apply</strong>: when you're done, click Apply &mdash; inventory adjusts to match what you counted, with an audit row per change.</li>
+          <li><strong>Cycle counts</strong>: do these regularly to keep numbers honest. Once a quarter for everything, or rotate aisles weekly.</li>
+        </ul>
+      </PageHelp>
 
       <FilterBar
         search={search}

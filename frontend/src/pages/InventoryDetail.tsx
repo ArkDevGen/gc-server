@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../api/client';
 import { ArrowLeft, MapPin, History, Plus, Minus, Pencil, Save, X, ExternalLink } from 'lucide-react';
+import HelpTip from '../components/ui/HelpTip';
 
 interface ItemLocation {
   id: string;
@@ -327,7 +328,20 @@ function AdjustStockModal({ itemId, itemName, onClose, onAdjusted }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Reason *{' '}
+              <HelpTip side="bottom">
+                <strong>physical count</strong>: matching system to a real-world count<br />
+                <strong>damage</strong>: items broken or unusable<br />
+                <strong>theft</strong>: items missing without explanation<br />
+                <strong>correction</strong>: fixing a data entry mistake<br />
+                <strong>received</strong>: stock came in (use a PO normally instead)<br />
+                <strong>returned</strong>: stock returned by a customer<br />
+                <strong>build_usage</strong>: consumed on a build (the build flow does this automatically)<br />
+                <strong>sale</strong>: sold without going through an invoice<br />
+                <strong>other</strong>: any reason that doesn't fit above &mdash; add a note
+              </HelpTip>
+            </label>
             <select value={reason} onChange={(e) => setReason(e.target.value)}
               className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
               {reasons.map((r) => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}

@@ -5,6 +5,7 @@ import { ShoppingCart } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
+import PageHelp from '../components/ui/PageHelp';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -61,6 +62,15 @@ export default function PurchaseOrders() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Purchase Orders</h1>
       </div>
+
+      <PageHelp storageKey="purchase-orders" defaultOpen>
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>Create a PO</strong>: pick vendor + receiving location, add line items, save as Draft.</li>
+          <li><strong>Send to vendor</strong>: change status to Pending. (When QBO sync ships, this will push to QuickBooks too.)</li>
+          <li><strong>Receive stock</strong>: open the PO &rarr; "Receive". Enter quantities received per line &mdash; partial receives are supported. Inventory updates automatically at the chosen location.</li>
+          <li><strong>Auto-generate from low stock</strong>: <em>Reports &rarr; Reorder Suggestions</em> can build POs for everything below reorder point.</li>
+        </ul>
+      </PageHelp>
 
       <FilterBar
         search={search}

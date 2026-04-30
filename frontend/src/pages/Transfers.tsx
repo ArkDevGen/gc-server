@@ -4,6 +4,7 @@ import { Plus, ArrowLeftRight, ArrowRight, Truck, PackageCheck } from 'lucide-re
 import Pagination from '../components/ui/Pagination';
 import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
+import PageHelp from '../components/ui/PageHelp';
 
 const statusColors: Record<string, string> = {
   requested: 'bg-gray-100 text-gray-700',
@@ -69,6 +70,14 @@ export default function Transfers() {
           <Plus size={16} /> New Transfer
         </button>
       </div>
+
+      <PageHelp storageKey="transfers">
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>Move stock between locations</strong>: pick from + to locations, add line items, submit. The transfer goes through Requested &rarr; Approved &rarr; In Transit &rarr; Received.</li>
+          <li><strong>Stock effects</strong>: stock decrements at the source when shipped, and re-appears at the destination when received. While "in transit" it's deducted from source but not yet at destination.</li>
+          <li><strong>Use the action buttons</strong> on each row (Approve / Ship / Receive) to advance the transfer.</li>
+        </ul>
+      </PageHelp>
 
       <FilterBar
         search={search}

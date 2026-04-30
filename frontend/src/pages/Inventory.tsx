@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import { Search, Plus, AlertTriangle, Package, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import HelpTip from '../components/ui/HelpTip';
+import PageHelp from '../components/ui/PageHelp';
 
 interface Item {
   id: string;
@@ -117,6 +119,16 @@ export default function Inventory() {
           <Plus size={16} /> Add Item
         </button>
       </div>
+
+      <PageHelp storageKey="inventory" defaultOpen>
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>Add an item</strong>: top-right "Add Item" button. Sets up the item record &mdash; stock starts at zero everywhere.</li>
+          <li><strong>Set stock at a location</strong>: click the item name &rarr; "Adjust Stock" (red button) on its detail page. Pick the location, choose Add or Remove, enter qty + reason.</li>
+          <li><strong>View stock at one location</strong>: use the "All Locations" filter dropdown above &mdash; the columns rescope to that location.</li>
+          <li><strong>See per-location breakdown</strong>: <em>Reports &rarr; Inventory by Location</em> for a wide grid view across every location.</li>
+          <li><strong>Receive stock from a vendor</strong>: create a PO (Purchase Orders &rarr; New PO), receive it &mdash; this fills stock at the receiving location automatically.</li>
+        </ul>
+      </PageHelp>
 
       {/* Filters */}
       <div className="bg-white rounded-xl border p-4 mb-4">
@@ -364,7 +376,10 @@ function AddItemModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                SKU{' '}
+                <HelpTip>Optional unique product code (your part number, manufacturer code, etc.). Leave blank if you don't use SKUs.</HelpTip>
+              </label>
               <input
                 type="text"
                 value={form.sku}
@@ -374,7 +389,14 @@ function AddItemModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Type{' '}
+                <HelpTip>
+                  <strong>Inventory</strong>: physical stock you count and track.<br />
+                  <strong>Non-Inventory</strong>: items you charge for but don't stock (delivery fees, small fasteners).<br />
+                  <strong>Service</strong>: labor or services billed by time or job.
+                </HelpTip>
+              </label>
               <select
                 value={form.item_type}
                 onChange={(e) => setForm({ ...form, item_type: e.target.value })}
@@ -438,7 +460,10 @@ function AddItemModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cost Price{' '}
+                <HelpTip>What you pay the vendor per unit. Used to calculate margin on quotes and invoices.</HelpTip>
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -449,7 +474,10 @@ function AddItemModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sell Price</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sell Price{' '}
+                <HelpTip>What you charge the customer per unit. The default that pre-fills new quotes; you can override per quote.</HelpTip>
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -463,7 +491,10 @@ function AddItemModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Point</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Reorder Point{' '}
+                <HelpTip>When on-hand qty drops to or below this number, the item shows as "Low" on the inventory list and gets surfaced in the Reorder Suggestions report.</HelpTip>
+              </label>
               <input
                 type="number"
                 min="0"
@@ -473,7 +504,10 @@ function AddItemModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Qty</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Reorder Qty{' '}
+                <HelpTip>How many to order when the reorder point is hit. Used to pre-fill the line quantity on auto-generated POs.</HelpTip>
+              </label>
               <input
                 type="number"
                 min="0"
@@ -488,7 +522,10 @@ function AddItemModal({
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Vendor &amp; Lead Time</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Vendor</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Preferred Vendor{' '}
+                  <HelpTip>The vendor who normally supplies this item. Auto-fills the vendor on POs and "Order from..." links on the low-stock report.</HelpTip>
+                </label>
                 <select
                   value={form.preferred_vendor_id}
                   onChange={(e) => setForm({ ...form, preferred_vendor_id: e.target.value })}
@@ -501,7 +538,10 @@ function AddItemModal({
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Lead Time (days)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Lead Time (days){' '}
+                  <HelpTip>How long it typically takes between placing a PO and receiving stock. Drives reorder timing and the "needing adjustment" calculation in Reorder Suggestions.</HelpTip>
+                </label>
                 <input
                   type="number"
                   min="0"

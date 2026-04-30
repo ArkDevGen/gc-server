@@ -4,6 +4,7 @@ import { Recycle } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
+import PageHelp from '../components/ui/PageHelp';
 
 export default function Surplus() {
   const [surplus, setSurplus] = useState<any[]>([]);
@@ -49,6 +50,15 @@ export default function Surplus() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Surplus Inventory</h1>
       </div>
+
+      <PageHelp storageKey="surplus">
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>Where surplus comes from</strong>: when a build closes out with leftover material, the system automatically captures it into the surplus pool with the original cost basis.</li>
+          <li><strong>Summary tab</strong>: aggregated totals per item (e.g., "47 fence posts available across 3 builds").</li>
+          <li><strong>Detail tab</strong>: every individual surplus pool entry with source build, location, and capture date.</li>
+          <li><strong>Reuse on quotes</strong>: when you add a line item to a quote that has surplus available, you'll see "Surplus available: N" with a toggle to consume from the pool at original cost.</li>
+        </ul>
+      </PageHelp>
 
       <FilterBar
         search={search}

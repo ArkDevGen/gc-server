@@ -5,6 +5,7 @@ import { Hammer } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
+import PageHelp from '../components/ui/PageHelp';
 
 const statusColors: Record<string, string> = {
   planning: 'bg-gray-100 text-gray-700',
@@ -60,6 +61,15 @@ export default function Builds() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Builds</h1>
       </div>
+
+      <PageHelp storageKey="builds" defaultOpen>
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>Builds are created from quotes</strong> &mdash; open an accepted quote and click "Convert to Build". Materials get allocated automatically from the quote lines.</li>
+          <li><strong>Record material usage</strong>: open a build &rarr; "Record Usage" to log what was actually consumed. Stock decrements from the source location.</li>
+          <li><strong>Track variance</strong>: the build dashboard shows planned vs actual cost so you can see margin in real time.</li>
+          <li><strong>Close out</strong>: when finished, click "Close Out". Leftover materials are automatically captured into the surplus pool with their original cost basis &mdash; reusable on future quotes.</li>
+        </ul>
+      </PageHelp>
 
       <FilterBar
         search={search}
