@@ -387,12 +387,21 @@ function ImportPanel() {
               <div className="flex items-center gap-2 text-green-700 mb-2">
                 <CheckCircle size={16} /> <span className="text-sm font-medium">Import complete</span>
               </div>
-              <div className="grid grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
                 <div><span className="text-gray-500">Total:</span> {result.total}</div>
                 <div><span className="text-green-600 font-medium">Imported:</span> {result.imported}</div>
+                {typeof result.updated === 'number' && (
+                  <div><span className="text-blue-600 font-medium">Updated:</span> {result.updated}</div>
+                )}
                 <div><span className="text-amber-600">Skipped:</span> {result.skipped}</div>
                 <div><span className="text-red-600">Errors:</span> {result.errored}</div>
               </div>
+              {typeof result.merged_into === 'number' && result.merged_into !== result.total && (
+                <p className="mt-2 text-xs text-gray-600">
+                  {result.total} rows in the file collapsed into {result.merged_into} unique vendors
+                  by matching on name (data merged across duplicates).
+                </p>
+              )}
               {typeof result.deactivated === 'number' && result.deactivated > 0 && (
                 <p className="mt-2 text-xs text-gray-600">
                   {result.deactivated} of the imported rows were marked inactive (Enabled = No).
