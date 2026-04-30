@@ -3,11 +3,11 @@ import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import {
   Users, MapPin, FolderTree, FileUp, Copy, Upload, CheckCircle, AlertTriangle,
-  Truck, Plus, Search, Edit2, X, Trash2,
+  Truck, Plus, Search, Edit2, X, Trash2, UserCheck,
 } from 'lucide-react';
 import TemplatesManager from '../components/TemplatesManager';
 
-type TabKey = 'users' | 'locations' | 'categories' | 'vendors' | 'templates' | 'import';
+type TabKey = 'users' | 'locations' | 'categories' | 'vendors' | 'customers' | 'templates' | 'import';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -18,6 +18,7 @@ export default function Settings() {
     { key: 'locations', label: 'Locations', icon: MapPin },
     { key: 'categories', label: 'Categories', icon: FolderTree },
     { key: 'vendors', label: 'Vendors', icon: Truck },
+    { key: 'customers', label: 'Customers', icon: UserCheck },
     { key: 'templates', label: 'Quote Templates', icon: Copy },
     ...(isAdmin ? [{ key: 'import' as TabKey, label: 'Import Data', icon: FileUp, adminOnly: true }] : []),
   ];
@@ -48,6 +49,8 @@ export default function Settings() {
           <CategoriesPanel canEdit={isAdmin} />
         ) : tab === 'vendors' ? (
           <VendorsPanel />
+        ) : tab === 'customers' ? (
+          <CustomersPanel />
         ) : tab === 'templates' ? (
           <TemplatesManager />
         ) : tab === 'import' ? (
@@ -937,6 +940,227 @@ function VendorModal({ vendor, onClose, onSaved }: {
             <button type="submit" disabled={saving}
               className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
               {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Vendor'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// CUSTOMERS PANEL
+// ============================================================================
+
+interface Customer {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  is_active: boolean;
+}
+
+function CustomersPanel() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'admin' || user?.role === 'office';
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
+  const [editing, setEditing] = useState<Customer | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+
+  const fetchCustomers = () => {
+    setLoading(true);
+    api.get('/customers', { params: { include_inactive: showInactive } })
+      .then((res) => setCustomers(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchCustomers(); }, [showInactive]);
+
+  const filtered = customers.filter((c) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return c.name.toLowerCase().includes(q)
+      || (c.email?.toLowerCase().includes(q) ?? false);
+  });
+
+  return (
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b">
+        <p className="text-sm text-gray-600">{customers.length} customers{showInactive ? '' : ' (active)'}</p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..."
+              className="pl-8 pr-3 py-1.5 border rounded-lg text-sm w-56" />
+          </div>
+          <label className="flex items-center gap-1.5 text-sm text-gray-600">
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+            Show inactive
+          </label>
+          {canEdit && (
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700">
+              <Plus size={14} /> New Customer
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b">
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Address</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+              {canEdit && <th className="px-4 py-3"></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                <UserCheck size={32} className="mx-auto mb-2 text-gray-300" />
+                No customers found. Click "+ New Customer" to add one.
+              </td></tr>
+            ) : filtered.map((c) => (
+              <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium">{c.name}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs">{c.email || '--'}</td>
+                <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.phone || '--'}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs truncate max-w-xs">{c.address || '--'}</td>
+                <td className="px-4 py-3 text-center">
+                  <span className={`text-xs font-medium ${c.is_active ? 'text-green-600' : 'text-gray-400'}`}>
+                    {c.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                {canEdit && (
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => setEditing(c)} className="text-primary-600 hover:text-primary-700">
+                      <Edit2 size={14} />
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showCreate && (
+        <CustomerModal customer={null}
+          onClose={() => setShowCreate(false)}
+          onSaved={() => { setShowCreate(false); fetchCustomers(); }} />
+      )}
+      {editing && (
+        <CustomerModal customer={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); fetchCustomers(); }} />
+      )}
+    </div>
+  );
+}
+
+function CustomerModal({ customer, onClose, onSaved }: {
+  customer: Customer | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!customer;
+  const [form, setForm] = useState({
+    name: customer?.name || '',
+    email: customer?.email || '',
+    phone: customer?.phone || '',
+    address: customer?.address || '',
+    is_active: customer?.is_active ?? true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true); setError('');
+    try {
+      const payload: any = { ...form };
+      Object.keys(payload).forEach((k) => {
+        if (typeof payload[k] === 'string' && payload[k].trim() === '') payload[k] = null;
+      });
+      if (isEdit) {
+        await api.patch(`/customers/${customer!.id}`, payload);
+      } else {
+        await api.post('/customers', payload);
+      }
+      onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold">{isEdit ? 'Edit Customer' : 'New Customer'}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input value={form.name} required
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Customer name or company"
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input type="email" value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <textarea value={form.address} rows={2}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          {isEdit && (
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.is_active}
+                onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
+              Active
+            </label>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 border rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Customer'}
             </button>
           </div>
         </form>
