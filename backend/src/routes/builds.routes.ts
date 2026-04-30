@@ -38,6 +38,11 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
   try {
     const status = req.query.status as string;
     const foremanId = req.query.foreman_id as string;
+    const locationId = req.query.location_id as string;
+    const search = req.query.search as string;
+    const sortBy = (req.query.sort_by as string) || 'created_at';
+    const sortDir = (req.query.sort_dir as string) === 'asc' ? 'ASC' : 'DESC';
+
     let sql = `SELECT b.*, c.name as customer_name, l.name as location_name,
                u.display_name as created_by_name, f.display_name as foreman_name
                FROM builds b
@@ -51,6 +56,25 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
 
     if (status) { sql += ` AND b.status = $${idx}`; params.push(status); idx++; }
     if (foremanId) { sql += ` AND b.foreman_id = $${idx}`; params.push(foremanId); idx++; }
+    if (locationId) { sql += ` AND b.location_id = $${idx}`; params.push(locationId); idx++; }
+    if (search) {
+      sql += ` AND (b.build_number ILIKE $${idx} OR b.name ILIKE $${idx} OR c.name ILIKE $${idx})`;
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    const allowedSorts: Record<string, string> = {
+      build_number: 'b.build_number',
+      name: 'b.name',
+      customer: 'c.name',
+      location: 'l.name',
+      foreman: 'f.display_name',
+      budget: 'b.budget_total',
+      actual: 'b.actual_total',
+      status: 'b.status',
+      created_at: 'b.created_at',
+    };
+    const sortCol = allowedSorts[sortBy] || 'b.created_at';
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 25;
@@ -59,7 +83,7 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     const countResult = await query(`SELECT COUNT(*) as total FROM (${sql}) sub`, params);
     const total = parseInt(countResult.rows[0].total);
 
-    sql += ` ORDER BY b.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    sql += ` ORDER BY ${sortCol} ${sortDir} LIMIT $${idx} OFFSET $${idx + 1}`;
     params.push(limit, offset);
 
     const result = await query(sql, params);

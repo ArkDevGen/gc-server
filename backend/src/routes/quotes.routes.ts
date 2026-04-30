@@ -45,6 +45,10 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
   try {
     const status = req.query.status as string;
     const customerId = req.query.customer_id as string;
+    const search = req.query.search as string;
+    const sortBy = (req.query.sort_by as string) || 'created_at';
+    const sortDir = (req.query.sort_dir as string) === 'asc' ? 'ASC' : 'DESC';
+
     let sql = `SELECT q.*, c.name as customer_name, u.display_name as created_by_name
                FROM quotes q
                JOIN customers c ON q.customer_id = c.id
@@ -55,6 +59,22 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
 
     if (status) { sql += ` AND q.status = $${idx}`; params.push(status); idx++; }
     if (customerId) { sql += ` AND q.customer_id = $${idx}`; params.push(customerId); idx++; }
+    if (search) {
+      sql += ` AND (q.quote_number ILIKE $${idx} OR c.name ILIKE $${idx})`;
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    const allowedSorts: Record<string, string> = {
+      quote_number: 'q.quote_number',
+      customer: 'c.name',
+      date: 'q.quote_date',
+      total: 'q.total',
+      margin: 'q.margin_pct',
+      status: 'q.status',
+      created_at: 'q.created_at',
+    };
+    const sortCol = allowedSorts[sortBy] || 'q.created_at';
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 25;
@@ -63,7 +83,7 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     const countResult = await query(`SELECT COUNT(*) as total FROM (${sql}) sub`, params);
     const total = parseInt(countResult.rows[0].total);
 
-    sql += ` ORDER BY q.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    sql += ` ORDER BY ${sortCol} ${sortDir} LIMIT $${idx} OFFSET $${idx + 1}`;
     params.push(limit, offset);
 
     const result = await query(sql, params);

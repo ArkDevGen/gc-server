@@ -140,6 +140,29 @@ router.get(
   }
 );
 
+// GET /api/auth/users/list — lightweight list for dropdowns (any authenticated user)
+// Optional ?role= query to filter by role
+router.get(
+  '/users/list',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.query.role as string;
+      let sql = 'SELECT id, display_name, role FROM users WHERE is_active = true';
+      const params: any[] = [];
+      if (role) {
+        sql += ' AND role = $1';
+        params.push(role);
+      }
+      sql += ' ORDER BY display_name';
+      const result = await query(sql, params);
+      res.json(result.rows);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // POST /api/auth/users (admin only)
 router.post(
   '/users',

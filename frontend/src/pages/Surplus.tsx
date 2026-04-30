@@ -1,21 +1,28 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
-import { Search, Recycle } from 'lucide-react';
+import { Recycle } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import FilterBar from '../components/ui/FilterBar';
+import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
 
 export default function Surplus() {
   const [surplus, setSurplus] = useState<any[]>([]);
   const [summary, setSummary] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'detail' | 'summary'>('summary');
   const [search, setSearch] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [sortBy, setSortBy] = useState('captured_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
   const fetchData = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const params: any = { page, limit: 25 };
+      const params: any = { page, limit: 25, sort_by: sortBy, sort_dir: sortDir };
       if (search) params.search = search;
+      if (locationFilter) params.location_id = locationFilter;
       const [detailRes, summaryRes] = await Promise.all([
         api.get('/surplus', { params }),
         api.get('/surplus/summary'),
@@ -25,9 +32,17 @@ export default function Surplus() {
       setSummary(summaryRes.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [search]);
+  }, [search, locationFilter, sortBy, sortDir]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchData(); }, [locationFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    api.get('/items/locations/list').then((res) => setLocations(res.data)).catch(() => {});
+  }, []);
+
+  const hasFilters = !!(locationFilter || search);
+  const clearFilters = () => { setSearch(''); setLocationFilter(''); };
+  const onToggleSort = (col: string) => toggleSort(col, sortBy, sortDir, setSortBy, setSortDir);
 
   return (
     <div>
@@ -35,17 +50,20 @@ export default function Surplus() {
         <h1 className="text-2xl font-bold text-gray-900">Surplus Inventory</h1>
       </div>
 
-      <div className="bg-white rounded-xl border p-4 mb-4">
-        <form onSubmit={(e) => { e.preventDefault(); fetchData(1); }} className="flex gap-3">
-          <div className="flex-1 relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Search surplus items..." value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
-          </div>
-          <button type="submit" className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium">Search</button>
-        </form>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        onSearchSubmit={() => fetchData(1)}
+        searchPlaceholder="Search surplus items by name or SKU..."
+        hasFilters={hasFilters}
+        onClearFilters={clearFilters}
+      >
+        <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Locations</option>
+          {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+      </FilterBar>
 
       <div className="flex gap-1 mb-4">
         <button onClick={() => setTab('summary')}
@@ -97,12 +115,12 @@ export default function Surplus() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Item</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
+                <SortHeader col="item" label="Item" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+                <SortHeader col="location" label="Location" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Source Build</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Qty</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Cost</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Captured</th>
+                <SortHeader col="qty" label="Qty" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+                <SortHeader col="cost" label="Cost" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+                <SortHeader col="captured_at" label="Captured" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Condition</th>
               </tr>
             </thead>

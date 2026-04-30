@@ -28,6 +28,12 @@ const createTransferSchema = z.object({
 router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const status = req.query.status as string;
+    const fromLocationId = req.query.from_location_id as string;
+    const toLocationId = req.query.to_location_id as string;
+    const search = req.query.search as string;
+    const sortBy = (req.query.sort_by as string) || 'created_at';
+    const sortDir = (req.query.sort_dir as string) === 'asc' ? 'ASC' : 'DESC';
+
     let sql = `SELECT t.*, fl.name as from_location_name, tl.name as to_location_name,
                u.display_name as requested_by_name
                FROM transfers t
@@ -39,6 +45,24 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     let idx = 1;
 
     if (status) { sql += ` AND t.status = $${idx}`; params.push(status); idx++; }
+    if (fromLocationId) { sql += ` AND t.from_location_id = $${idx}`; params.push(fromLocationId); idx++; }
+    if (toLocationId) { sql += ` AND t.to_location_id = $${idx}`; params.push(toLocationId); idx++; }
+    if (search) {
+      sql += ` AND (t.transfer_number ILIKE $${idx} OR fl.name ILIKE $${idx} OR tl.name ILIKE $${idx})`;
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    const allowedSorts: Record<string, string> = {
+      transfer_number: 't.transfer_number',
+      from_location: 'fl.name',
+      to_location: 'tl.name',
+      requested_by: 'u.display_name',
+      date: 't.created_at',
+      status: 't.status',
+      created_at: 't.created_at',
+    };
+    const sortCol = allowedSorts[sortBy] || 't.created_at';
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 25;
@@ -47,7 +71,7 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     const countResult = await query(`SELECT COUNT(*) as total FROM (${sql}) sub`, params);
     const total = parseInt(countResult.rows[0].total);
 
-    sql += ` ORDER BY t.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    sql += ` ORDER BY ${sortCol} ${sortDir} LIMIT $${idx} OFFSET $${idx + 1}`;
     params.push(limit, offset);
 
     const result = await query(sql, params);

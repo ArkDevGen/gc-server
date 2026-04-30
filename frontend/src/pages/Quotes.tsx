@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import { Plus, FileText } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import FilterBar from '../components/ui/FilterBar';
+import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -16,9 +18,15 @@ const statusColors: Record<string, string> = {
 export default function Quotes() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [quotes, setQuotes] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(searchParams.get('new') === '1');
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   // Clear the ?new=1 param after opening
   useEffect(() => {
@@ -30,14 +38,26 @@ export default function Quotes() {
   const fetchQuotes = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const res = await api.get('/quotes', { params: { page, limit: 25 } });
+      const params: any = { page, limit: 25, sort_by: sortBy, sort_dir: sortDir };
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
+      if (customerFilter) params.customer_id = customerFilter;
+      const res = await api.get('/quotes', { params });
       setQuotes(res.data.data);
       setPagination(res.data.pagination);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  }, [search, statusFilter, customerFilter, sortBy, sortDir]);
+
+  useEffect(() => { fetchQuotes(); }, [statusFilter, customerFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    api.get('/customers').then((res) => setCustomers(res.data)).catch(() => {});
   }, []);
 
-  useEffect(() => { fetchQuotes(); }, [fetchQuotes]);
+  const hasFilters = !!(statusFilter || customerFilter || search);
+  const clearFilters = () => { setSearch(''); setStatusFilter(''); setCustomerFilter(''); };
+  const onToggleSort = (col: string) => toggleSort(col, sortBy, sortDir, setSortBy, setSortDir);
 
   return (
     <div>
@@ -49,16 +69,41 @@ export default function Quotes() {
         </button>
       </div>
 
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        onSearchSubmit={() => fetchQuotes(1)}
+        searchPlaceholder="Search by quote number or customer name..."
+        hasFilters={hasFilters}
+        onClearFilters={clearFilters}
+      >
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Statuses</option>
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="accepted">Accepted</option>
+          <option value="rejected">Rejected</option>
+          <option value="expired">Expired</option>
+          <option value="converted">Converted</option>
+        </select>
+        <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Customers</option>
+          {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </FilterBar>
+
       <div className="bg-white rounded-xl border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Quote #</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Margin</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+              <SortHeader col="quote_number" label="Quote #" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="customer" label="Customer" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="date" label="Date" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="total" label="Total" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+              <SortHeader col="margin" label="Margin" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+              <SortHeader col="status" label="Status" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="center" />
               <th className="text-left px-4 py-3 font-medium text-gray-600">Created By</th>
             </tr>
           </thead>

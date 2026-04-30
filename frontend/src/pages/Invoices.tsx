@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
 import { Receipt } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import FilterBar from '../components/ui/FilterBar';
+import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -15,20 +17,38 @@ const statusColors: Record<string, string> = {
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const fetchInvoices = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const res = await api.get('/invoices', { params: { page, limit: 25 } });
+      const params: any = { page, limit: 25, sort_by: sortBy, sort_dir: sortDir };
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
+      if (customerFilter) params.customer_id = customerFilter;
+      const res = await api.get('/invoices', { params });
       setInvoices(res.data.data);
       setPagination(res.data.pagination);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  }, [search, statusFilter, customerFilter, sortBy, sortDir]);
+
+  useEffect(() => { fetchInvoices(); }, [statusFilter, customerFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    api.get('/customers').then((res) => setCustomers(res.data)).catch(() => {});
   }, []);
 
-  useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
+  const hasFilters = !!(statusFilter || customerFilter || search);
+  const clearFilters = () => { setSearch(''); setStatusFilter(''); setCustomerFilter(''); };
+  const onToggleSort = (col: string) => toggleSort(col, sortBy, sortDir, setSortBy, setSortDir);
 
   return (
     <div>
@@ -36,16 +56,42 @@ export default function Invoices() {
         <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
       </div>
 
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        onSearchSubmit={() => fetchInvoices(1)}
+        searchPlaceholder="Search by invoice number or customer name..."
+        hasFilters={hasFilters}
+        onClearFilters={clearFilters}
+      >
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Statuses</option>
+          <option value="draft">Draft</option>
+          <option value="sent_to_qbo">Sent to QBO</option>
+          <option value="emailed">Emailed</option>
+          <option value="viewed">Viewed</option>
+          <option value="paid">Paid</option>
+          <option value="overdue">Overdue</option>
+          <option value="voided">Voided</option>
+        </select>
+        <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Customers</option>
+          {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </FilterBar>
+
       <div className="bg-white rounded-xl border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Invoice #</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Email</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+              <SortHeader col="invoice_number" label="Invoice #" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="customer" label="Customer" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="date" label="Date" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="total" label="Total" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+              <SortHeader col="email_status" label="Email" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="center" />
+              <SortHeader col="status" label="Status" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="center" />
             </tr>
           </thead>
           <tbody>
@@ -54,7 +100,7 @@ export default function Invoices() {
             ) : invoices.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                 <Receipt size={32} className="mx-auto mb-2 text-gray-300" />
-                No invoices yet
+                No invoices found
               </td></tr>
             ) : invoices.map((inv) => (
               <tr key={inv.id} className="border-b hover:bg-gray-50">

@@ -30,6 +30,12 @@ const recordCountSchema = z.object({
 router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const status = req.query.status as string;
+    const locationId = req.query.location_id as string;
+    const assignedTo = req.query.assigned_to as string;
+    const search = req.query.search as string;
+    const sortBy = (req.query.sort_by as string) || 'created_at';
+    const sortDir = (req.query.sort_dir as string) === 'asc' ? 'ASC' : 'DESC';
+
     let sql = `SELECT pc.*, l.name as location_name, u.display_name as created_by_name,
                a.display_name as assigned_to_name
                FROM physical_counts pc
@@ -41,6 +47,26 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     let idx = 1;
 
     if (status) { sql += ` AND pc.status = $${idx}`; params.push(status); idx++; }
+    if (locationId) { sql += ` AND pc.location_id = $${idx}`; params.push(locationId); idx++; }
+    if (assignedTo) { sql += ` AND pc.assigned_to = $${idx}`; params.push(assignedTo); idx++; }
+    if (search) {
+      sql += ` AND (pc.count_number ILIKE $${idx} OR pc.description ILIKE $${idx} OR l.name ILIKE $${idx})`;
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    const allowedSorts: Record<string, string> = {
+      count_number: 'pc.count_number',
+      location: 'l.name',
+      assigned_to: 'a.display_name',
+      total_items: 'pc.total_items',
+      items_counted: 'pc.items_counted',
+      items_variance: 'pc.items_variance',
+      status: 'pc.status',
+      date: 'pc.created_at',
+      created_at: 'pc.created_at',
+    };
+    const sortCol = allowedSorts[sortBy] || 'pc.created_at';
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 25;
@@ -49,7 +75,7 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     const countResult = await query(`SELECT COUNT(*) as total FROM (${sql}) sub`, params);
     const total = parseInt(countResult.rows[0].total);
 
-    sql += ` ORDER BY pc.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    sql += ` ORDER BY ${sortCol} ${sortDir} LIMIT $${idx} OFFSET $${idx + 1}`;
     params.push(limit, offset);
 
     const result = await query(sql, params);

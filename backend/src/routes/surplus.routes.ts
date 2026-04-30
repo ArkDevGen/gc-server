@@ -10,6 +10,8 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     const itemId = req.query.item_id as string;
     const locationId = req.query.location_id as string;
     const search = req.query.search as string;
+    const sortBy = (req.query.sort_by as string) || 'captured_at';
+    const sortDir = (req.query.sort_dir as string) === 'asc' ? 'ASC' : 'DESC';
 
     let sql = `SELECT sp.*, i.name as item_name, i.sku, i.unit_of_measure,
                l.name as location_name, b.build_number, b.name as build_name,
@@ -27,6 +29,15 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     if (locationId) { sql += ` AND sp.location_id = $${idx}`; params.push(locationId); idx++; }
     if (search) { sql += ` AND (i.name ILIKE $${idx} OR i.sku ILIKE $${idx})`; params.push(`%${search}%`); idx++; }
 
+    const allowedSorts: Record<string, string> = {
+      item: 'i.name',
+      location: 'l.name',
+      qty: 'sp.qty_available',
+      cost: 'sp.original_cost',
+      captured_at: 'sp.captured_at',
+    };
+    const sortCol = allowedSorts[sortBy] || 'sp.captured_at';
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 25;
     const offset = (page - 1) * limit;
@@ -34,7 +45,7 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     const countResult = await query(`SELECT COUNT(*) as total FROM (${sql}) sub`, params);
     const total = parseInt(countResult.rows[0].total);
 
-    sql += ` ORDER BY sp.captured_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    sql += ` ORDER BY ${sortCol} ${sortDir} LIMIT $${idx} OFFSET $${idx + 1}`;
     params.push(limit, offset);
 
     const result = await query(sql, params);

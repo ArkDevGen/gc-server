@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
 import { Plus, ArrowLeftRight, ArrowRight, Truck, PackageCheck } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import FilterBar from '../components/ui/FilterBar';
+import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
 
 const statusColors: Record<string, string> = {
   requested: 'bg-gray-100 text-gray-700',
@@ -13,21 +15,41 @@ const statusColors: Record<string, string> = {
 
 export default function Transfers() {
   const [transfers, setTransfers] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [fromFilter, setFromFilter] = useState('');
+  const [toFilter, setToFilter] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const fetchTransfers = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const res = await api.get('/transfers', { params: { page, limit: 25 } });
+      const params: any = { page, limit: 25, sort_by: sortBy, sort_dir: sortDir };
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
+      if (fromFilter) params.from_location_id = fromFilter;
+      if (toFilter) params.to_location_id = toFilter;
+      const res = await api.get('/transfers', { params });
       setTransfers(res.data.data);
       setPagination(res.data.pagination);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  }, [search, statusFilter, fromFilter, toFilter, sortBy, sortDir]);
+  useEffect(() => { fetchTransfers(); }, [statusFilter, fromFilter, toFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    api.get('/items/locations/list').then((res) => setLocations(res.data)).catch(() => {});
   }, []);
-  useEffect(() => { fetchTransfers(); }, [fetchTransfers]);
+
+  const hasFilters = !!(statusFilter || fromFilter || toFilter || search);
+  const clearFilters = () => { setSearch(''); setStatusFilter(''); setFromFilter(''); setToFilter(''); };
+  const onToggleSort = (col: string) => toggleSort(col, sortBy, sortDir, setSortBy, setSortDir);
 
   const handleAction = async (id: string, action: string) => {
     setActionLoading(id + action);
@@ -48,16 +70,45 @@ export default function Transfers() {
         </button>
       </div>
 
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        onSearchSubmit={() => fetchTransfers(1)}
+        searchPlaceholder="Search by transfer number or location..."
+        hasFilters={hasFilters}
+        onClearFilters={clearFilters}
+      >
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Statuses</option>
+          <option value="requested">Requested</option>
+          <option value="approved">Approved</option>
+          <option value="in_transit">In Transit</option>
+          <option value="received">Received</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select value={fromFilter} onChange={(e) => setFromFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All From Locations</option>
+          {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+        <select value={toFilter} onChange={(e) => setToFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All To Locations</option>
+          {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+      </FilterBar>
+
       <div className="bg-white rounded-xl border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Transfer #</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">From</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">To</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Requested By</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+              <SortHeader col="transfer_number" label="Transfer #" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="from_location" label="From" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="to_location" label="To" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="requested_by" label="Requested By" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="date" label="Date" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="status" label="Status" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="center" />
               <th className="text-right px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
@@ -67,7 +118,7 @@ export default function Transfers() {
             ) : transfers.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                 <ArrowLeftRight size={32} className="mx-auto mb-2 text-gray-300" />
-                No transfers yet
+                No transfers found
               </td></tr>
             ) : transfers.map((t) => (
               <tr key={t.id} className="border-b hover:bg-gray-50">

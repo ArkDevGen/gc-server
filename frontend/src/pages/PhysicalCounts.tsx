@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
-import { Plus, ClipboardList, Play, CheckCircle, Send } from 'lucide-react';
+import { Plus, ClipboardList } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import FilterBar from '../components/ui/FilterBar';
+import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -14,20 +16,44 @@ const statusColors: Record<string, string> = {
 
 export default function PhysicalCounts() {
   const [counts, setCounts] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [assignedFilter, setAssignedFilter] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const fetchCounts = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const res = await api.get('/counts', { params: { page, limit: 25 } });
+      const params: any = { page, limit: 25, sort_by: sortBy, sort_dir: sortDir };
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
+      if (locationFilter) params.location_id = locationFilter;
+      if (assignedFilter) params.assigned_to = assignedFilter;
+      const res = await api.get('/counts', { params });
       setCounts(res.data.data);
       setPagination(res.data.pagination);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  }, [search, statusFilter, locationFilter, assignedFilter, sortBy, sortDir]);
+  useEffect(() => { fetchCounts(); }, [statusFilter, locationFilter, assignedFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/items/locations/list'),
+      api.get('/auth/users/list'),
+    ]).then(([l, u]) => { setLocations(l.data); setUsers(u.data); }).catch(() => {});
   }, []);
-  useEffect(() => { fetchCounts(); }, [fetchCounts]);
+
+  const hasFilters = !!(statusFilter || locationFilter || assignedFilter || search);
+  const clearFilters = () => { setSearch(''); setStatusFilter(''); setLocationFilter(''); setAssignedFilter(''); };
+  const onToggleSort = (col: string) => toggleSort(col, sortBy, sortDir, setSortBy, setSortDir);
 
   return (
     <div>
@@ -39,18 +65,47 @@ export default function PhysicalCounts() {
         </button>
       </div>
 
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        onSearchSubmit={() => fetchCounts(1)}
+        searchPlaceholder="Search by count number, description, or location..."
+        hasFilters={hasFilters}
+        onClearFilters={clearFilters}
+      >
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Statuses</option>
+          <option value="draft">Draft</option>
+          <option value="in_progress">In Progress</option>
+          <option value="review">Review</option>
+          <option value="applied">Applied</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Locations</option>
+          {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+        <select value={assignedFilter} onChange={(e) => setAssignedFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Assignees</option>
+          {users.map((u) => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+        </select>
+      </FilterBar>
+
       <div className="bg-white rounded-xl border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Count #</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Assigned To</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Items</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Counted</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Variances</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+              <SortHeader col="count_number" label="Count #" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="location" label="Location" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="assigned_to" label="Assigned To" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="total_items" label="Items" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+              <SortHeader col="items_counted" label="Counted" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+              <SortHeader col="items_variance" label="Variances" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+              <SortHeader col="status" label="Status" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="center" />
+              <SortHeader col="date" label="Date" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
             </tr>
           </thead>
           <tbody>
@@ -59,7 +114,7 @@ export default function PhysicalCounts() {
             ) : counts.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                 <ClipboardList size={32} className="mx-auto mb-2 text-gray-300" />
-                No physical counts yet
+                No physical counts found
               </td></tr>
             ) : counts.map((c) => (
               <tr key={c.id} className="border-b hover:bg-gray-50">
@@ -105,7 +160,7 @@ function CreateCountModal({ onClose, onCreated }: { onClose: () => void; onCreat
     Promise.all([
       api.get('/items/locations/list'),
       api.get('/items/categories/list'),
-      api.get('/auth/users').catch(() => ({ data: [] })),
+      api.get('/auth/users/list').catch(() => ({ data: [] })),
     ]).then(([l, c, u]) => { setLocations(l.data); setCategories(c.data); setUsers(u.data); });
   }, []);
 

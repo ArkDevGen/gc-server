@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
-import { Plus, Hammer } from 'lucide-react';
+import { Hammer } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import FilterBar from '../components/ui/FilterBar';
+import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
 
 const statusColors: Record<string, string> = {
   planning: 'bg-gray-100 text-gray-700',
@@ -14,20 +16,44 @@ const statusColors: Record<string, string> = {
 
 export default function Builds() {
   const [builds, setBuilds] = useState<any[]>([]);
+  const [foremen, setForemen] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [foremanFilter, setForemanFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const fetchBuilds = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const res = await api.get('/builds', { params: { page, limit: 25 } });
+      const params: any = { page, limit: 25, sort_by: sortBy, sort_dir: sortDir };
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
+      if (foremanFilter) params.foreman_id = foremanFilter;
+      if (locationFilter) params.location_id = locationFilter;
+      const res = await api.get('/builds', { params });
       setBuilds(res.data.data);
       setPagination(res.data.pagination);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  }, [search, statusFilter, foremanFilter, locationFilter, sortBy, sortDir]);
+
+  useEffect(() => { fetchBuilds(); }, [statusFilter, foremanFilter, locationFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/auth/users/list', { params: { role: 'foreman' } }),
+      api.get('/items/locations/list'),
+    ]).then(([f, l]) => { setForemen(f.data); setLocations(l.data); }).catch(() => {});
   }, []);
 
-  useEffect(() => { fetchBuilds(); }, [fetchBuilds]);
+  const hasFilters = !!(statusFilter || foremanFilter || locationFilter || search);
+  const clearFilters = () => { setSearch(''); setStatusFilter(''); setForemanFilter(''); setLocationFilter(''); };
+  const onToggleSort = (col: string) => toggleSort(col, sortBy, sortDir, setSortBy, setSortDir);
 
   return (
     <div>
@@ -35,18 +61,47 @@ export default function Builds() {
         <h1 className="text-2xl font-bold text-gray-900">Builds</h1>
       </div>
 
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        onSearchSubmit={() => fetchBuilds(1)}
+        searchPlaceholder="Search by build number, name, or customer..."
+        hasFilters={hasFilters}
+        onClearFilters={clearFilters}
+      >
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Statuses</option>
+          <option value="planning">Planning</option>
+          <option value="active">Active</option>
+          <option value="on_hold">On Hold</option>
+          <option value="complete">Complete</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Locations</option>
+          {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+        <select value={foremanFilter} onChange={(e) => setForemanFilter(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+          <option value="">All Foremen</option>
+          {foremen.map((f) => <option key={f.id} value={f.id}>{f.display_name}</option>)}
+        </select>
+      </FilterBar>
+
       <div className="bg-white rounded-xl border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Build #</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Foreman</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Budget</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Actual</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+              <SortHeader col="build_number" label="Build #" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="name" label="Name" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="customer" label="Customer" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="location" label="Location" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="foreman" label="Foreman" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} />
+              <SortHeader col="budget" label="Budget" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+              <SortHeader col="actual" label="Actual" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+              <SortHeader col="status" label="Status" sortBy={sortBy} sortDir={sortDir} onToggle={onToggleSort} align="center" />
             </tr>
           </thead>
           <tbody>
@@ -55,7 +110,7 @@ export default function Builds() {
             ) : builds.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                 <Hammer size={32} className="mx-auto mb-2 text-gray-300" />
-                No builds yet. Create a quote and convert it to a build.
+                No builds found
               </td></tr>
             ) : builds.map((b) => (
               <tr key={b.id} className="border-b hover:bg-gray-50">

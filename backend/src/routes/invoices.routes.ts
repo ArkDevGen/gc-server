@@ -28,6 +28,10 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
   try {
     const status = req.query.status as string;
     const customerId = req.query.customer_id as string;
+    const search = req.query.search as string;
+    const sortBy = (req.query.sort_by as string) || 'created_at';
+    const sortDir = (req.query.sort_dir as string) === 'asc' ? 'ASC' : 'DESC';
+
     let sql = `SELECT inv.*, c.name as customer_name, u.display_name as created_by_name
                FROM invoices inv
                JOIN customers c ON inv.customer_id = c.id
@@ -38,6 +42,22 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
 
     if (status) { sql += ` AND inv.status = $${idx}`; params.push(status); idx++; }
     if (customerId) { sql += ` AND inv.customer_id = $${idx}`; params.push(customerId); idx++; }
+    if (search) {
+      sql += ` AND (inv.invoice_number ILIKE $${idx} OR c.name ILIKE $${idx})`;
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    const allowedSorts: Record<string, string> = {
+      invoice_number: 'inv.invoice_number',
+      customer: 'c.name',
+      date: 'inv.invoice_date',
+      total: 'inv.total',
+      email_status: 'inv.email_status',
+      status: 'inv.status',
+      created_at: 'inv.created_at',
+    };
+    const sortCol = allowedSorts[sortBy] || 'inv.created_at';
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 25;
@@ -46,7 +66,7 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     const countResult = await query(`SELECT COUNT(*) as total FROM (${sql}) sub`, params);
     const total = parseInt(countResult.rows[0].total);
 
-    sql += ` ORDER BY inv.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    sql += ` ORDER BY ${sortCol} ${sortDir} LIMIT $${idx} OFFSET $${idx + 1}`;
     params.push(limit, offset);
 
     const result = await query(sql, params);
