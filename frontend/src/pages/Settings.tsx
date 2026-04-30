@@ -3,8 +3,9 @@ import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import {
   Users, MapPin, FolderTree, FileUp, Copy, Upload, CheckCircle, AlertTriangle,
-  Truck, Plus, Search, Edit2, X,
+  Truck, Plus, Search, Edit2, X, Trash2, Info,
 } from 'lucide-react';
+import TemplatesManager from '../components/TemplatesManager';
 
 type TabKey = 'users' | 'locations' | 'categories' | 'vendors' | 'templates' | 'import';
 
@@ -12,40 +13,12 @@ export default function Settings() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [tab, setTab] = useState<TabKey>(isAdmin ? 'users' : 'locations');
-  const [users, setUsers] = useState<any[]>([]);
-  const [locations, setLocations] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = () => {
-    setLoading(true);
-    const promises: Promise<any>[] = [
-      api.get('/items/locations/list'),
-      api.get('/items/categories/list'),
-      api.get('/templates'),
-    ];
-    if (isAdmin) promises.push(api.get('/auth/users'));
-
-    Promise.all(promises)
-      .then(([locRes, catRes, tplRes, usersRes]) => {
-        setLocations(locRes.data);
-        setCategories(catRes.data);
-        setTemplates(tplRes.data);
-        if (usersRes) setUsers(usersRes.data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, [isAdmin]);
-
   const tabs: { key: TabKey; label: string; icon: any; adminOnly?: boolean }[] = [
     ...(isAdmin ? [{ key: 'users' as TabKey, label: 'Users', icon: Users, adminOnly: true }] : []),
     { key: 'locations', label: 'Locations', icon: MapPin },
     { key: 'categories', label: 'Categories', icon: FolderTree },
     { key: 'vendors', label: 'Vendors', icon: Truck },
-    { key: 'templates', label: 'Templates', icon: Copy },
+    { key: 'templates', label: 'Quote Templates', icon: Copy },
     ...(isAdmin ? [{ key: 'import' as TabKey, label: 'Import Data', icon: FileUp, adminOnly: true }] : []),
   ];
 
@@ -67,18 +40,16 @@ export default function Settings() {
       </div>
 
       <div className="bg-white rounded-xl border overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">Loading...</div>
-        ) : tab === 'users' && isAdmin ? (
-          <UsersTable users={users} />
+        {tab === 'users' && isAdmin ? (
+          <UsersPanel />
         ) : tab === 'locations' ? (
-          <LocationsTable locations={locations} />
+          <LocationsPanel canEdit={isAdmin} />
         ) : tab === 'categories' ? (
-          <CategoriesTable categories={categories} />
+          <CategoriesPanel canEdit={isAdmin} />
         ) : tab === 'vendors' ? (
           <VendorsPanel />
         ) : tab === 'templates' ? (
-          <TemplatesPanel templates={templates} onRefresh={fetchData} />
+          <TemplatesManager />
         ) : tab === 'import' ? (
           <ImportPanel />
         ) : null}
@@ -87,221 +58,493 @@ export default function Settings() {
   );
 }
 
-function UsersTable({ users }: { users: any[] }) {
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="bg-gray-50 border-b">
-          <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-          <th className="text-left px-4 py-3 font-medium text-gray-600">Username</th>
-          <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
-          <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {users.map((u) => (
-          <tr key={u.id} className="border-b last:border-0">
-            <td className="px-4 py-3 font-medium">{u.display_name}</td>
-            <td className="px-4 py-3 text-gray-600">{u.username}</td>
-            <td className="px-4 py-3">
-              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 capitalize">{u.role}</span>
-            </td>
-            <td className="px-4 py-3 text-center">
-              <span className={`text-xs font-medium ${u.is_active ? 'text-green-600' : 'text-red-600'}`}>
-                {u.is_active ? 'Active' : 'Disabled'}
-              </span>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+// ============================================================================
+// USERS PANEL
+// ============================================================================
 
-function LocationsTable({ locations }: { locations: any[] }) {
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="bg-gray-50 border-b">
-          <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-          <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-          <th className="text-left px-4 py-3 font-medium text-gray-600">Address</th>
-        </tr>
-      </thead>
-      <tbody>
-        {locations.map((l) => (
-          <tr key={l.id} className="border-b last:border-0">
-            <td className="px-4 py-3 font-medium">{l.name}</td>
-            <td className="px-4 py-3">
-              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 capitalize">
-                {l.location_type.replace('_', ' ')}
-              </span>
-            </td>
-            <td className="px-4 py-3 text-gray-600">{l.address || '--'}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function CategoriesTable({ categories }: { categories: any[] }) {
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="bg-gray-50 border-b">
-          <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-          <th className="text-left px-4 py-3 font-medium text-gray-600">Sort Order</th>
-        </tr>
-      </thead>
-      <tbody>
-        {categories.map((c) => (
-          <tr key={c.id} className="border-b last:border-0">
-            <td className="px-4 py-3 font-medium">{c.name}</td>
-            <td className="px-4 py-3 text-gray-600">{c.sort_order}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function TemplatesPanel({ templates, onRefresh }: { templates: any[]; onRefresh: () => void }) {
+function UsersPanel() {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
+  const [editing, setEditing] = useState<any | null>(null);
 
-  useEffect(() => {
-    api.get('/items', { params: { limit: 200 } }).then((res) => setItems(res.data.data));
-  }, []);
+  const fetch = () => {
+    setLoading(true);
+    api.get('/auth/users').then((res) => setUsers(res.data)).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => { fetch(); }, []);
 
   return (
     <div>
       <div className="flex items-center justify-between p-4 border-b">
-        <p className="text-sm text-gray-600">Reusable line item sets for creating quotes quickly</p>
+        <p className="text-sm text-gray-600">{users.length} user accounts</p>
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700">
-          <Copy size={14} /> New Template
+          <Plus size={14} /> Add User
         </button>
       </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-50 border-b">
-            <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-            <th className="text-left px-4 py-3 font-medium text-gray-600">Description</th>
-            <th className="text-right px-4 py-3 font-medium text-gray-600">Items</th>
-            <th className="text-left px-4 py-3 font-medium text-gray-600">Created By</th>
-          </tr>
-        </thead>
-        <tbody>
-          {templates.length === 0 ? (
-            <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-              No templates yet. Create one to speed up quote creation.
-            </td></tr>
-          ) : templates.map((t) => (
-            <tr key={t.id} className="border-b last:border-0">
-              <td className="px-4 py-3 font-medium">{t.name}</td>
-              <td className="px-4 py-3 text-gray-600">{t.description || '--'}</td>
-              <td className="px-4 py-3 text-right">{t.line_count}</td>
-              <td className="px-4 py-3 text-gray-600">{t.created_by_name}</td>
+      {loading ? <div className="p-8 text-center text-gray-500">Loading...</div> : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b">
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Username</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+              <th className="px-4 py-3"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className="border-b last:border-0 hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium">{u.display_name}</td>
+                <td className="px-4 py-3 text-gray-600">{u.username}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs">{u.email || '--'}</td>
+                <td className="px-4 py-3">
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 capitalize">{u.role}</span>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <span className={`text-xs font-medium ${u.is_active ? 'text-green-600' : 'text-gray-400'}`}>
+                    {u.is_active ? 'Active' : 'Disabled'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button onClick={() => setEditing(u)} className="text-primary-600 hover:text-primary-700">
+                    <Edit2 size={14} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {showCreate && (
-        <CreateTemplateModal items={items}
-          onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); onRefresh(); }} />
+        <UserModal user={null} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); fetch(); }} />
+      )}
+      {editing && (
+        <UserModal user={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); fetch(); }} />
       )}
     </div>
   );
 }
 
-function CreateTemplateModal({ items, onClose, onCreated }: { items: any[]; onClose: () => void; onCreated: () => void }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [lines, setLines] = useState<any[]>([{ item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0 }]);
+function UserModal({ user, onClose, onSaved }: {
+  user: any | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!user;
+  const [form, setForm] = useState({
+    username: user?.username || '',
+    password: '',
+    display_name: user?.display_name || '',
+    email: user?.email || '',
+    role: user?.role || 'office',
+    is_active: user?.is_active ?? true,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  const addLine = () => setLines([...lines, { item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0 }]);
-
-  const updateLine = (idx: number, field: string, value: any) => {
-    const updated = [...lines];
-    updated[idx] = { ...updated[idx], [field]: value };
-    if (field === 'item_id' && value) {
-      const item = items.find((i: any) => i.id === value);
-      if (item) {
-        updated[idx].description = item.name;
-        updated[idx].unit_cost = parseFloat(item.cost_price);
-        updated[idx].unit_price = parseFloat(item.sell_price);
-      }
-    }
-    setLines(updated);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true); setError('');
     try {
-      await api.post('/templates', { name, description, lines: lines.map((l) => ({ ...l, item_id: l.item_id || undefined })) });
-      onCreated();
-    } catch (err: any) { setError(err.response?.data?.error || 'Failed'); }
+      if (isEdit) {
+        const payload: any = { display_name: form.display_name, email: form.email || undefined, role: form.role, is_active: form.is_active };
+        await api.patch(`/auth/users/${user!.id}`, payload);
+      } else {
+        await api.post('/auth/users', {
+          username: form.username, password: form.password,
+          display_name: form.display_name, email: form.email || undefined, role: form.role,
+        });
+      }
+      onSaved();
+    } catch (err: any) { setError(err.response?.data?.error || 'Failed to save'); }
     finally { setSaving(false); }
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold">New Quote Template</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+          <h2 className="text-lg font-semibold">{isEdit ? 'Edit User' : 'Add User'}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>}
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Standard Fence Job - 440 LF"
+            <label className="block text-sm font-medium text-gray-700 mb-1">Display Name *</label>
+            <input value={form.display_name} required
+              onChange={(e) => setForm({ ...form, display_name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          {!isEdit && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Username *</label>
+                <input value={form.username} required minLength={3}
+                  onChange={(e) => setForm({ ...form, username: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                <input type="password" value={form.password} required minLength={6}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  placeholder="At least 6 characters" />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input type="email" value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              <option value="admin">Admin — full access, user management</option>
+              <option value="office">Office — quotes, POs, invoices</option>
+              <option value="store">Store — view inventory, record sales</option>
+              <option value="foreman">Foreman — view builds, record material usage</option>
+            </select>
+          </div>
+
+          {isEdit && (
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.is_active}
+                onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
+              Active
+            </label>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 border rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// LOCATIONS PANEL
+// ============================================================================
+
+function LocationsPanel({ canEdit }: { canEdit: boolean }) {
+  const [locations, setLocations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
+
+  const fetch = () => {
+    setLoading(true);
+    api.get('/items/locations/list').then((res) => setLocations(res.data)).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => { fetch(); }, []);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Deactivate "${name}"? It will be hidden from new transactions but historical records are preserved.`)) return;
+    try {
+      await api.delete(`/items/locations/list/${id}`);
+      fetch();
+    } catch (err: any) { alert(err.response?.data?.error || 'Failed to deactivate'); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between p-4 border-b">
+        <p className="text-sm text-gray-600">{locations.length} active locations</p>
+        {canEdit && (
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700">
+            <Plus size={14} /> Add Location
+          </button>
+        )}
+      </div>
+      {loading ? <div className="p-8 text-center text-gray-500">Loading...</div> : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b">
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Address</th>
+              {canEdit && <th className="px-4 py-3"></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {locations.length === 0 ? (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500">No locations yet</td></tr>
+            ) : locations.map((l) => (
+              <tr key={l.id} className="border-b last:border-0 hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium">{l.name}</td>
+                <td className="px-4 py-3">
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 capitalize">
+                    {l.location_type.replace('_', ' ')}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-gray-600">{l.address || '--'}</td>
+                {canEdit && (
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setEditing(l)} className="text-primary-600 hover:text-primary-700">
+                        <Edit2 size={14} />
+                      </button>
+                      <button onClick={() => handleDelete(l.id, l.name)} className="text-red-500 hover:text-red-700">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {showCreate && <LocationModal location={null} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); fetch(); }} />}
+      {editing && <LocationModal location={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); fetch(); }} />}
+    </div>
+  );
+}
+
+function LocationModal({ location, onClose, onSaved }: {
+  location: any | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!location;
+  const [form, setForm] = useState({
+    name: location?.name || '',
+    location_type: location?.location_type || 'warehouse',
+    address: location?.address || '',
+    is_active: location?.is_active ?? true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true); setError('');
+    try {
+      const payload: any = { ...form, address: form.address || null };
+      if (isEdit) {
+        await api.patch(`/items/locations/list/${location!.id}`, payload);
+      } else {
+        await api.post('/items/locations/list', { name: form.name, location_type: form.location_type, address: form.address || null });
+      }
+      onSaved();
+    } catch (err: any) { setError(err.response?.data?.error || 'Failed to save'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold">{isEdit ? 'Edit Location' : 'Add Location'}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input value={form.name} required
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g. Main Warehouse"
               className="w-full px-3 py-2 border rounded-lg text-sm" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description"
+            <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+            <select value={form.location_type}
+              onChange={(e) => setForm({ ...form, location_type: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              <option value="warehouse">Warehouse</option>
+              <option value="store">Store</option>
+              <option value="build_site">Build Site</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <textarea value={form.address} rows={2}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+          {isEdit && (
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.is_active}
+                onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
+              Active
+            </label>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 border rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Location'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// CATEGORIES PANEL
+// ============================================================================
+
+function CategoriesPanel({ canEdit }: { canEdit: boolean }) {
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
+
+  const fetch = () => {
+    setLoading(true);
+    api.get('/items/categories/list').then((res) => setCategories(res.data)).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => { fetch(); }, []);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Delete category "${name}"? This cannot be undone. Categories in use by inventory items cannot be deleted.`)) return;
+    try {
+      await api.delete(`/items/categories/list/${id}`);
+      fetch();
+    } catch (err: any) { alert(err.response?.data?.error || 'Failed to delete'); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between p-4 border-b">
+        <div>
+          <p className="text-sm text-gray-600">{categories.length} categories</p>
+          <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+            <Info size={11} /> Sort order controls the order categories appear in dropdowns (lower = first; ties broken alphabetically).
+          </p>
+        </div>
+        {canEdit && (
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700">
+            <Plus size={14} /> Add Category
+          </button>
+        )}
+      </div>
+      {loading ? <div className="p-8 text-center text-gray-500">Loading...</div> : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b">
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Sort Order</th>
+              {canEdit && <th className="px-4 py-3"></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {categories.length === 0 ? (
+              <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                No categories yet. Categories are auto-created when you import items.
+              </td></tr>
+            ) : categories.map((c) => (
+              <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium">{c.name}</td>
+                <td className="px-4 py-3 text-right text-gray-600">{c.sort_order}</td>
+                {canEdit && (
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setEditing(c)} className="text-primary-600 hover:text-primary-700">
+                        <Edit2 size={14} />
+                      </button>
+                      <button onClick={() => handleDelete(c.id, c.name)} className="text-red-500 hover:text-red-700">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {showCreate && <CategoryModal category={null} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); fetch(); }} />}
+      {editing && <CategoryModal category={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); fetch(); }} />}
+    </div>
+  );
+}
+
+function CategoryModal({ category, onClose, onSaved }: {
+  category: any | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!category;
+  const [form, setForm] = useState({
+    name: category?.name || '',
+    sort_order: category?.sort_order ?? 0,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true); setError('');
+    try {
+      if (isEdit) {
+        await api.patch(`/items/categories/list/${category!.id}`, form);
+      } else {
+        await api.post('/items/categories/list', form);
+      }
+      onSaved();
+    } catch (err: any) { setError(err.response?.data?.error || 'Failed to save'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold">{isEdit ? 'Edit Category' : 'Add Category'}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input value={form.name} required
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g. Fencing"
               className="w-full px-3 py-2 border rounded-lg text-sm" />
           </div>
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">Line Items</label>
-              <button type="button" onClick={addLine} className="text-sm text-primary-600 hover:text-primary-700 font-medium">+ Add Line</button>
-            </div>
-            <div className="space-y-2">
-              {lines.map((line, idx) => (
-                <div key={idx} className="flex gap-2 items-start p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-1 grid grid-cols-4 gap-2">
-                    <select value={line.item_id} onChange={(e) => updateLine(idx, 'item_id', e.target.value)}
-                      className="px-2 py-1.5 border rounded text-sm bg-white col-span-2">
-                      <option value="">Custom item</option>
-                      {items.map((i: any) => <option key={i.id} value={i.id}>{i.sku ? `${i.sku} - ` : ''}{i.name}</option>)}
-                    </select>
-                    <input placeholder="Qty" type="number" step="0.01" min="0.01" value={line.qty}
-                      onChange={(e) => updateLine(idx, 'qty', parseFloat(e.target.value) || 0)} className="px-2 py-1.5 border rounded text-sm" />
-                    <input placeholder="Price" type="number" step="0.01" min="0" value={line.unit_price}
-                      onChange={(e) => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)} className="px-2 py-1.5 border rounded text-sm" />
-                    {!line.item_id && (
-                      <input placeholder="Description" value={line.description} onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                        className="px-2 py-1.5 border rounded text-sm col-span-4" required={!line.item_id} />
-                    )}
-                  </div>
-                  <button type="button" onClick={() => lines.length > 1 && setLines(lines.filter((_, i) => i !== idx))}
-                    className="text-red-400 hover:text-red-600 mt-1">&times;</button>
-                </div>
-              ))}
-            </div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
+            <input type="number" value={form.sort_order}
+              onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+            <p className="text-xs text-gray-500 mt-1">Lower numbers appear first (e.g. 0 before 10). Leave at 0 to sort alphabetically.</p>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 border rounded-lg hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
-              {saving ? 'Creating...' : 'Create Template'}
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 border rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Category'}
             </button>
           </div>
         </form>

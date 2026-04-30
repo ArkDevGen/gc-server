@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
-import { Plus, FileText } from 'lucide-react';
+import { Plus, FileText, Copy } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
+import { TemplatesManagerModal } from '../components/TemplatesManager';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -21,6 +22,7 @@ export default function Quotes() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(searchParams.get('new') === '1');
+  const [showTemplates, setShowTemplates] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -63,10 +65,16 @@ export default function Quotes() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Quotes</h1>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
-          <Plus size={16} /> New Quote
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowTemplates(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">
+            <Copy size={16} /> Quote Templates
+          </button>
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
+            <Plus size={16} /> New Quote
+          </button>
+        </div>
       </div>
 
       <FilterBar
@@ -140,6 +148,7 @@ export default function Quotes() {
       </div>
 
       {showCreate && <CreateQuoteModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchQuotes(); }} />}
+      {showTemplates && <TemplatesManagerModal onClose={() => setShowTemplates(false)} />}
     </div>
   );
 }

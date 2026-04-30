@@ -397,11 +397,63 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { name, slug, location_type, address } = req.body;
+      // Auto-generate slug from name if not provided
+      const finalSlug = (slug || name || '')
+        .toString().toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 50);
+      if (!name || !location_type || !finalSlug) {
+        return res.status(400).json({ error: 'name and location_type are required' });
+      }
       const result = await query(
         `INSERT INTO locations (name, slug, location_type, address) VALUES ($1, $2, $3, $4) RETURNING *`,
-        [name, slug, location_type, address || null]
+        [name, finalSlug, location_type, address || null]
       );
       res.status(201).json(result.rows[0]);
+    } catch (err: any) {
+      if (err.code === '23505') return res.status(409).json({ error: 'Location with that slug already exists' });
+      next(err);
+    }
+  }
+);
+
+// PATCH /api/locations/list/:id
+router.patch(
+  '/locations/list/:id',
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { name, location_type, address, is_active } = req.body;
+      const result = await query(
+        `UPDATE locations SET
+           name = COALESCE($1, name),
+           location_type = COALESCE($2, location_type),
+           address = COALESCE($3, address),
+           is_active = COALESCE($4, is_active)
+         WHERE id = $5 RETURNING *`,
+        [name, location_type, address, is_active, req.params.id]
+      );
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Location not found' });
+      res.json(result.rows[0]);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /api/locations/list/:id — soft delete (is_active = false)
+router.delete(
+  '/locations/list/:id',
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await query(
+        `UPDATE locations SET is_active = false WHERE id = $1 RETURNING id`,
+        [req.params.id]
+      );
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Location not found' });
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }
@@ -430,11 +482,62 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { name, parent_id, sort_order } = req.body;
+      if (!name) return res.status(400).json({ error: 'name is required' });
       const result = await query(
         `INSERT INTO categories (name, parent_id, sort_order) VALUES ($1, $2, $3) RETURNING *`,
         [name, parent_id || null, sort_order || 0]
       );
       res.status(201).json(result.rows[0]);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// PATCH /api/categories/list/:id
+router.patch(
+  '/categories/list/:id',
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { name, parent_id, sort_order } = req.body;
+      const result = await query(
+        `UPDATE categories SET
+           name = COALESCE($1, name),
+           parent_id = $2,
+           sort_order = COALESCE($3, sort_order)
+         WHERE id = $4 RETURNING *`,
+        [name, parent_id ?? null, sort_order, req.params.id]
+      );
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Category not found' });
+      res.json(result.rows[0]);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /api/categories/list/:id — refuses if category is in use
+router.delete(
+  '/categories/list/:id',
+  requireAuth,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const usage = await query(
+        'SELECT COUNT(*) as cnt FROM items WHERE category_id = $1',
+        [req.params.id]
+      );
+      const count = parseInt(usage.rows[0].cnt, 10);
+      if (count > 0) {
+        return res.status(409).json({
+          error: `Cannot delete: ${count} item${count === 1 ? '' : 's'} still use this category. Reassign them first.`,
+        });
+      }
+      const result = await query('DELETE FROM categories WHERE id = $1 RETURNING id', [req.params.id]);
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Category not found' });
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }
