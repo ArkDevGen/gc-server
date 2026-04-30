@@ -11,6 +11,7 @@ interface Item {
   item_type: string;
   category_name: string;
   vendor_name: string;
+  preferred_vendor_id: string | null;
   unit_of_measure: string;
   cost_price: string;
   sell_price: string;
@@ -192,6 +193,7 @@ export default function Inventory() {
                 <SortHeader col="name" label="Name" />
                 <SortHeader col="category" label="Category" />
                 <SortHeader col="type" label="Type" />
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Vendor</th>
                 <SortHeader col="on_hand" label={activeLocation ? 'On Hand (here)' : 'On Hand'} align="right" />
                 <SortHeader col="available" label={activeLocation ? 'Available (here)' : 'Available'} align="right" />
                 <SortHeader col="cost" label="Cost" align="right" />
@@ -202,13 +204,13 @@ export default function Inventory() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                     Loading...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                     <Package size={32} className="mx-auto mb-2 text-gray-300" />
                     No items found
                   </td>
@@ -241,6 +243,7 @@ export default function Inventory() {
                           {item.item_type.replace('_', ' ')}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{item.vendor_name || '--'}</td>
                       <td className="px-4 py-3 text-right font-mono">
                         {onHand.toLocaleString()}
                       </td>
@@ -278,6 +281,7 @@ export default function Inventory() {
       {showAddModal && (
         <AddItemModal
           categories={categories}
+          vendors={vendors}
           onClose={() => setShowAddModal(false)}
           onAdded={() => { setShowAddModal(false); fetchItems(); }}
         />
@@ -288,10 +292,12 @@ export default function Inventory() {
 
 function AddItemModal({
   categories,
+  vendors,
   onClose,
   onAdded,
 }: {
   categories: Category[];
+  vendors: Vendor[];
   onClose: () => void;
   onAdded: () => void;
 }) {
@@ -306,6 +312,8 @@ function AddItemModal({
     sell_price: 0,
     reorder_point: 0,
     reorder_qty: 0,
+    preferred_vendor_id: '',
+    lead_time_days: '' as string | number,
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -316,11 +324,23 @@ function AddItemModal({
     setError('');
 
     try {
-      await api.post('/items', {
-        ...form,
-        category_id: form.category_id || undefined,
+      const payload: any = {
         sku: form.sku || undefined,
-      });
+        name: form.name,
+        description: form.description || undefined,
+        item_type: form.item_type,
+        category_id: form.category_id || undefined,
+        unit_of_measure: form.unit_of_measure,
+        cost_price: form.cost_price,
+        sell_price: form.sell_price,
+        reorder_point: form.reorder_point,
+        reorder_qty: form.reorder_qty,
+        preferred_vendor_id: form.preferred_vendor_id || undefined,
+      };
+      if (form.lead_time_days !== '' && form.lead_time_days !== null) {
+        payload.lead_time_days = Number(form.lead_time_days);
+      }
+      await api.post('/items', payload);
       onAdded();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create item');
@@ -461,6 +481,37 @@ function AddItemModal({
                 onChange={(e) => setForm({ ...form, reorder_qty: parseInt(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border rounded-lg text-sm"
               />
+            </div>
+          </div>
+
+          <div className="pt-2 border-t">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Vendor &amp; Lead Time</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Vendor</label>
+                <select
+                  value={form.preferred_vendor_id}
+                  onChange={(e) => setForm({ ...form, preferred_vendor_id: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                >
+                  <option value="">None</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lead Time (days)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.lead_time_days}
+                  onChange={(e) => setForm({ ...form, lead_time_days: e.target.value === '' ? '' : parseInt(e.target.value) || 0 })}
+                  placeholder="Use vendor default"
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">Leave blank to fall back to the vendor's default.</p>
+              </div>
             </div>
           </div>
 

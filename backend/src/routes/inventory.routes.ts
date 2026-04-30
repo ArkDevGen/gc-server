@@ -23,6 +23,7 @@ const createItemSchema = z.object({
   reorder_point: z.number().int().min(0).default(0),
   reorder_qty: z.number().int().min(0).default(0),
   preferred_vendor_id: z.string().uuid().optional(),
+  lead_time_days: z.number().int().min(0).optional(),
 });
 
 const updateItemSchema = z.object({
@@ -212,7 +213,8 @@ router.post(
     try {
       const {
         sku, name, description, item_type, category_id,
-        unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty, preferred_vendor_id,
+        unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty,
+        preferred_vendor_id, lead_time_days,
       } = req.body;
 
       if (sku) {
@@ -223,11 +225,13 @@ router.post(
       }
 
       const result = await query(
-        `INSERT INTO items (sku, name, description, item_type, category_id, unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty, preferred_vendor_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO items (sku, name, description, item_type, category_id, unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty, preferred_vendor_id, lead_time_days)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING *`,
         [sku || null, name, description || null, item_type, category_id || null,
-         unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty, preferred_vendor_id || null]
+         unit_of_measure, cost_price, sell_price, reorder_point, reorder_qty,
+         preferred_vendor_id || null,
+         lead_time_days === undefined ? null : lead_time_days]
       );
 
       res.status(201).json(result.rows[0]);
