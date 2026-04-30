@@ -32,6 +32,17 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      # Support / contact form (Resend)
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SUPPORT_FROM_EMAIL
+        value: hub@arkfinancialservices.com
+      - key: SUPPORT_FROM_NAME
+        value: Ark Support
+      - key: SUPPORT_TO_EMAIL
+        value: staff@arkfinancialservices.com
+      - key: CLIENT_NAME
+        value: Goodman Classic
 
 databases:
   - name: gc-inventory-db

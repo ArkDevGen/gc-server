@@ -17,6 +17,7 @@ import importRoutes from './routes/import.routes';
 import transfersRoutes from './routes/transfers.routes';
 import reportsRoutes from './routes/reports.routes';
 import countsRoutes from './routes/counts.routes';
+import supportRoutes from './routes/support.routes';
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/import', importRoutes);
 app.use('/api/transfers', transfersRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/counts', countsRoutes);
+app.use('/api/support', supportRoutes);
 
 // Serve frontend in production
 if (env.NODE_ENV === 'production') {

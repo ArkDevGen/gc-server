@@ -6,6 +6,7 @@ import {
   Receipt, ArrowLeftRight, Recycle, BarChart3, Settings,
   Menu, X, LogOut, ChevronDown, ClipboardList, Sparkles,
 } from 'lucide-react';
+import SupportButton from '../components/SupportButton';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -127,6 +128,9 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Floating support button — visible on every authenticated page */}
+      <SupportButton />
     </div>
   );
 }
