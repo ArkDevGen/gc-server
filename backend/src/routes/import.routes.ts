@@ -8,25 +8,46 @@ import { AuthRequest } from '../types';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+// Split a single CSV line into its values, respecting quoted fields.
+// Strips the surrounding double-quotes and unescapes "" -> ".
+function splitCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      // Handle escaped "" inside a quoted field
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.trim());
+  return values;
+}
+
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim());
   if (lines.length < 2) return [];
 
-  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'));
+  // Use the same quote-aware splitter for the header line so that
+  // exports like `"Enabled","Vendor","Contact"` produce clean keys.
+  const headers = splitCsvLine(lines[0]).map((h) =>
+    h.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '')
+  );
   const rows: Record<string, string>[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    // Handle quoted CSV values
-    const values: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (const char of lines[i]) {
-      if (char === '"') { inQuotes = !inQuotes; }
-      else if (char === ',' && !inQuotes) { values.push(current.trim()); current = ''; }
-      else { current += char; }
-    }
-    values.push(current.trim());
-
+    const values = splitCsvLine(lines[i]);
     const row: Record<string, string> = {};
     headers.forEach((h, idx) => { row[h] = values[idx] || ''; });
     rows.push(row);
