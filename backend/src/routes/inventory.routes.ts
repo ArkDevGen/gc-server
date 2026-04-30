@@ -128,13 +128,20 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
     // For aggregated columns, use alias in ORDER BY
     const orderExpr = ['total_on_hand', 'total_available'].includes(orderCol) ? orderCol : orderCol;
 
+    // When a location is selected, scope the qty SUMs to that location only
+    // (and INNER JOIN on item_locations so we hide items that aren't tracked
+    // at that location at all). When no location is selected, SUM across
+    // every location to give the all-locations totals.
+    const stockJoin = locationId
+      ? `JOIN item_locations allil ON allil.item_id = i.id AND allil.location_id = $${paramIdx - 1}`
+      : `LEFT JOIN item_locations allil ON allil.item_id = i.id`;
+
     // Count query (wrapping full query to account for HAVING)
     const innerQuery = `
       SELECT i.id
       FROM items i
       LEFT JOIN categories c ON i.category_id = c.id
-      LEFT JOIN item_locations allil ON allil.item_id = i.id
-      ${locationId ? `JOIN item_locations il ON il.item_id = i.id AND il.location_id = $${paramIdx - 1}` : ''}
+      ${stockJoin}
       ${where}
       GROUP BY i.id, c.name
       ${havingClause}
@@ -151,8 +158,7 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
       FROM items i
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN vendors v ON i.preferred_vendor_id = v.id
-      LEFT JOIN item_locations allil ON allil.item_id = i.id
-      ${locationId ? `JOIN item_locations il ON il.item_id = i.id AND il.location_id = $${paramIdx - 1}` : ''}
+      ${stockJoin}
       ${where}
       GROUP BY i.id, c.name, v.name
       ${havingClause}

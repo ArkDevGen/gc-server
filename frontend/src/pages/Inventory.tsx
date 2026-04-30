@@ -35,6 +35,7 @@ export default function Inventory() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [vendorFilter, setVendorFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
   const [stockFilter, setStockFilter] = useState(''); // '' | 'low' | 'in_stock' | 'no_stock'
   const [sortBy, setSortBy] = useState('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -48,6 +49,7 @@ export default function Inventory() {
       if (categoryFilter) params.category_id = categoryFilter;
       if (typeFilter) params.item_type = typeFilter;
       if (vendorFilter) params.vendor_id = vendorFilter;
+      if (locationFilter) params.location_id = locationFilter;
       if (stockFilter === 'low') params.low_stock = true;
       if (stockFilter === 'in_stock') params.has_stock = 'true';
       if (stockFilter === 'no_stock') params.has_stock = 'false';
@@ -60,7 +62,7 @@ export default function Inventory() {
     } finally {
       setLoading(false);
     }
-  }, [search, categoryFilter, typeFilter, vendorFilter, stockFilter, sortBy, sortDir]);
+  }, [search, categoryFilter, typeFilter, vendorFilter, locationFilter, stockFilter, sortBy, sortDir]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -101,8 +103,9 @@ export default function Inventory() {
     </th>
   );
 
-  const hasFilters = categoryFilter || typeFilter || vendorFilter || stockFilter;
-  const clearFilters = () => { setCategoryFilter(''); setTypeFilter(''); setVendorFilter(''); setStockFilter(''); };
+  const hasFilters = categoryFilter || typeFilter || vendorFilter || locationFilter || stockFilter;
+  const clearFilters = () => { setCategoryFilter(''); setTypeFilter(''); setVendorFilter(''); setLocationFilter(''); setStockFilter(''); };
+  const activeLocation = locations.find((l) => l.id === locationFilter);
 
   return (
     <div>
@@ -140,6 +143,11 @@ export default function Inventory() {
               <option value="surplus">Surplus</option>
               <option value="service">Service</option>
             </select>
+            <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}
+              className="px-3 py-1.5 border rounded-lg text-sm bg-white">
+              <option value="">All Locations</option>
+              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
             <select value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)}
               className="px-3 py-1.5 border rounded-lg text-sm bg-white">
               <option value="">All Vendors</option>
@@ -162,6 +170,18 @@ export default function Inventory() {
         </form>
       </div>
 
+      {/* Location-scope banner when filtered */}
+      {activeLocation && (
+        <div className="bg-primary-50 border border-primary-200 text-primary-700 text-sm rounded-lg px-4 py-2 mb-3 flex items-center justify-between">
+          <span>
+            Showing items stocked at <strong>{activeLocation.name}</strong>. On Hand and Available reflect this location only.
+          </span>
+          <button onClick={() => setLocationFilter('')} className="text-xs text-primary-700 hover:underline font-medium">
+            Show all locations
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-xl border overflow-hidden">
         <div className="overflow-x-auto">
@@ -172,8 +192,8 @@ export default function Inventory() {
                 <SortHeader col="name" label="Name" />
                 <SortHeader col="category" label="Category" />
                 <SortHeader col="type" label="Type" />
-                <SortHeader col="on_hand" label="On Hand" align="right" />
-                <SortHeader col="available" label="Available" align="right" />
+                <SortHeader col="on_hand" label={activeLocation ? 'On Hand (here)' : 'On Hand'} align="right" />
+                <SortHeader col="available" label={activeLocation ? 'Available (here)' : 'Available'} align="right" />
                 <SortHeader col="cost" label="Cost" align="right" />
                 <SortHeader col="price" label="Price" align="right" />
                 <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
