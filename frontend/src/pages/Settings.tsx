@@ -3,7 +3,7 @@ import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import {
   Users, MapPin, FolderTree, FileUp, Copy, Upload, CheckCircle, AlertTriangle,
-  Truck, Plus, Search, Edit2, X, Trash2, Info,
+  Truck, Plus, Search, Edit2, X, Trash2,
 } from 'lucide-react';
 import TemplatesManager from '../components/TemplatesManager';
 
@@ -433,12 +433,7 @@ function CategoriesPanel({ canEdit }: { canEdit: boolean }) {
   return (
     <div>
       <div className="flex items-center justify-between p-4 border-b">
-        <div>
-          <p className="text-sm text-gray-600">{categories.length} categories</p>
-          <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-            <Info size={11} /> Sort order controls the order categories appear in dropdowns (lower = first; ties broken alphabetically).
-          </p>
-        </div>
+        <p className="text-sm text-gray-600">{categories.length} categories</p>
         {canEdit && (
           <button onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700">
@@ -451,19 +446,17 @@ function CategoriesPanel({ canEdit }: { canEdit: boolean }) {
           <thead>
             <tr className="bg-gray-50 border-b">
               <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Sort Order</th>
               {canEdit && <th className="px-4 py-3"></th>}
             </tr>
           </thead>
           <tbody>
             {categories.length === 0 ? (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+              <tr><td colSpan={2} className="px-4 py-8 text-center text-gray-500">
                 No categories yet. Categories are auto-created when you import items.
               </td></tr>
             ) : categories.map((c) => (
               <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium">{c.name}</td>
-                <td className="px-4 py-3 text-right text-gray-600">{c.sort_order}</td>
                 {canEdit && (
                   <td className="px-4 py-3 text-right">
                     <div className="flex gap-2 justify-end">
@@ -495,7 +488,6 @@ function CategoryModal({ category, onClose, onSaved }: {
   const isEdit = !!category;
   const [form, setForm] = useState({
     name: category?.name || '',
-    sort_order: category?.sort_order ?? 0,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -529,13 +521,6 @@ function CategoryModal({ category, onClose, onSaved }: {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. Fencing"
               className="w-full px-3 py-2 border rounded-lg text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
-            <input type="number" value={form.sort_order}
-              onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })}
-              className="w-full px-3 py-2 border rounded-lg text-sm" />
-            <p className="text-xs text-gray-500 mt-1">Lower numbers appear first (e.g. 0 before 10). Leave at 0 to sort alphabetically.</p>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose}
