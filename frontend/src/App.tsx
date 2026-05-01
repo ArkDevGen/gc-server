@@ -11,6 +11,7 @@ import BuildDetail from './pages/BuildDetail';
 import PurchaseOrders from './pages/PurchaseOrders';
 import PODetail from './pages/PODetail';
 import Invoices from './pages/Invoices';
+import InvoiceDetail from './pages/InvoiceDetail';
 import Transfers from './pages/Transfers';
 import Surplus from './pages/Surplus';
 import Reports from './pages/Reports';
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="/purchase-orders" element={<PurchaseOrders />} />
         <Route path="/purchase-orders/:id" element={<PODetail />} />
         <Route path="/invoices" element={<Invoices />} />
+        <Route path="/invoices/:id" element={<InvoiceDetail />} />
         <Route path="/transfers" element={<Transfers />} />
         <Route path="/counts" element={<PhysicalCounts />} />
         <Route path="/counts/:id" element={<CountDetail />} />

@@ -9,6 +9,10 @@ import { getNextNumber } from '../services/sequence.service';
 
 const router = Router();
 
+const updateStatusSchema = z.object({
+  status: z.enum(['draft', 'sent_to_qbo', 'emailed', 'viewed', 'paid', 'overdue', 'voided']),
+});
+
 const createInvoiceSchema = z.object({
   customer_id: z.string().uuid(),
   build_id: z.string().uuid().optional(),
@@ -143,7 +147,7 @@ router.post('/', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), vali
 );
 
 // PATCH /api/invoices/:id/status
-router.patch('/:id/status', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE),
+router.patch('/:id/status', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), validate(updateStatusSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { status } = req.body;

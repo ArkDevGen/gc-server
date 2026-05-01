@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
-import { ArrowLeft, Play, ClipboardCheck, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Play, ClipboardCheck, CheckCircle, Receipt } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 
@@ -14,6 +14,7 @@ const statusColors: Record<string, string> = {
 
 export default function BuildDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const toast = useToast();
   const confirm = useConfirm();
   const [build, setBuild] = useState<any>(null);
@@ -102,6 +103,18 @@ export default function BuildDetail() {
                   <CheckCircle size={14} /> {actionLoading === 'closeout' ? 'Closing...' : 'Close Out'}
                 </button>
               </>
+            )}
+            {build.status === 'complete' && build.customer_id && (
+              <button
+                onClick={() => {
+                  const params = new URLSearchParams({ new: '1', customer_id: build.customer_id });
+                  params.set('build_id', build.id);
+                  if (build.quote_id) params.set('quote_id', build.quote_id);
+                  navigate(`/invoices?${params.toString()}`);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
+                <Receipt size={14} /> Create Invoice
+              </button>
             )}
           </div>
         </div>
