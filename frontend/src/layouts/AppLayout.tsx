@@ -104,6 +104,9 @@ export default function AppLayout() {
               <LogOut size={18} />
             </button>
           </div>
+          <p className="mt-3 pt-3 border-t border-gray-800 text-[10px] text-gray-500 tracking-wider uppercase">
+            Powered by <span className="text-gray-400 font-semibold">EchoSync</span>
+          </p>
         </div>
       </aside>
 
