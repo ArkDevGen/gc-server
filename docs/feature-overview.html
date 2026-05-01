@@ -4,124 +4,217 @@
 <meta charset="UTF-8">
 <title>GC Inventory Hub — Feature Overview</title>
 <style>
-  @page { size: letter; margin: 0.5in; }
+  /* ---------- Goodman Classic brand palette ---------- */
+  :root {
+    --gc-red:       #c8202c;
+    --gc-red-dark:  #9b1620;
+    --gc-red-soft:  #fee2e2;
+    --gc-charcoal:  #1f2937;
+    --gc-slate:     #4b5563;
+    --gc-mute:      #6b7280;
+    --gc-line:      #e5e7eb;
+    --gc-bg-warm:   #fafaf9;
+    --gc-bg-soft:   #f9fafb;
+    --gc-gold:      #b45309;
+    --gc-gold-soft: #fef3c7;
+    --gc-blue:      #1e3a8a;
+    --gc-blue-soft: #dbeafe;
+  }
+
+  @page { size: letter; margin: 0.45in; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color: #1f2937;
+    font-family: "Helvetica Neue", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--gc-charcoal);
     line-height: 1.4;
     font-size: 10.5pt;
+    background: white;
   }
   .page {
-    padding: 0.25in 0;
-    max-width: 7.5in;
+    padding: 0;
+    max-width: 7.6in;
     margin: 0 auto;
   }
   .page + .page { page-break-before: always; }
 
+  /* ---------- Branded header ---------- */
   header.brand {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-    border-bottom: 3px solid #b45309;
-    padding-bottom: 8px;
+    align-items: center;
+    padding: 0 0 12px 0;
+    border-bottom: 4px solid var(--gc-red);
     margin-bottom: 18px;
+    position: relative;
   }
-  .brand-name {
-    font-size: 11pt;
-    letter-spacing: 0.15em;
-    color: #6b7280;
-    font-weight: 600;
-    text-transform: uppercase;
+  header.brand::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -8px;
+    width: 80px;
+    height: 4px;
+    background: var(--gc-charcoal);
   }
-  .brand-product {
-    font-size: 18pt;
+  .brand-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .brand-logo {
+    height: 56px;
+    width: auto;
+    border: 1px solid var(--gc-line);
+    background: white;
+  }
+  .brand-text .brand-name {
+    font-size: 9pt;
+    letter-spacing: 0.22em;
+    color: var(--gc-mute);
     font-weight: 700;
-    color: #111827;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .brand-text .brand-product {
+    font-size: 22pt;
+    font-weight: 800;
+    color: var(--gc-charcoal);
     margin: 2px 0 0 0;
+    letter-spacing: -0.01em;
   }
   .brand-tag {
-    font-size: 9pt;
-    color: #6b7280;
     text-align: right;
+    font-size: 8.5pt;
+    color: var(--gc-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    line-height: 1.6;
+  }
+  .brand-tag strong {
+    color: var(--gc-red);
+    font-weight: 700;
   }
 
+  /* ---------- Section headings ---------- */
   h1.section-title {
-    font-size: 14pt;
+    font-size: 15pt;
     margin: 0 0 4px 0;
-    color: #111827;
+    color: var(--gc-charcoal);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h1.section-title::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 18px;
+    background: var(--gc-red);
+    border-radius: 2px;
   }
   p.section-sub {
     font-size: 9.5pt;
-    color: #6b7280;
-    margin: 0 0 14px 0;
+    color: var(--gc-mute);
+    margin: 0 0 14px 16px;
   }
 
+  /* ---------- Cards ---------- */
   .grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px 16px;
+    gap: 8px 14px;
   }
   .item {
-    border-left: 3px solid #16a34a;
-    padding: 4px 0 4px 10px;
+    border: 1px solid var(--gc-line);
+    border-left: 3px solid var(--gc-red);
+    background: white;
+    padding: 7px 10px 7px 12px;
+    border-radius: 0 4px 4px 0;
     page-break-inside: avoid;
   }
-  .item.premium { border-left-color: #f59e0b; }
-  .item.soon    { border-left-color: #3b82f6; }
+  .item.premium { border-left-color: var(--gc-gold); }
+  .item.soon    { border-left-color: var(--gc-blue); }
+
   .item-label {
-    font-weight: 600;
+    font-weight: 700;
     font-size: 10pt;
-    color: #111827;
+    color: var(--gc-charcoal);
+    line-height: 1.2;
   }
   .item-desc {
-    font-size: 9pt;
-    color: #4b5563;
-    margin-top: 2px;
+    font-size: 8.75pt;
+    color: var(--gc-slate);
+    margin-top: 3px;
+    line-height: 1.4;
   }
 
+  /* ---------- Category sub-headings ---------- */
   .category {
     font-size: 8.5pt;
-    font-weight: 700;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #6b7280;
+    letter-spacing: 0.12em;
+    color: var(--gc-red);
     margin: 14px 0 6px 0;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--gc-line);
   }
-  .category:first-of-type { margin-top: 0; }
+  .category:first-of-type { margin-top: 4px; }
 
+  /* ---------- Badges ---------- */
   .badge {
     display: inline-block;
-    font-size: 7.5pt;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 9999px;
+    font-size: 7pt;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 3px;
     margin-left: 6px;
-    vertical-align: middle;
+    vertical-align: 1px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
-  .badge.premium { background: #fef3c7; color: #92400e; }
-  .badge.soon    { background: #dbeafe; color: #1e40af; }
+  .badge.premium { background: var(--gc-gold-soft); color: var(--gc-gold); }
+  .badge.soon    { background: var(--gc-blue-soft); color: var(--gc-blue); }
 
-  .footer {
-    margin-top: 22px;
-    padding-top: 10px;
-    border-top: 1px solid #e5e7eb;
+  /* ---------- Callout ---------- */
+  .callout {
+    background: var(--gc-bg-warm);
+    border-left: 4px solid var(--gc-charcoal);
+    padding: 12px 16px;
+    font-size: 9.5pt;
+    margin-top: 16px;
+    color: var(--gc-charcoal);
+    line-height: 1.55;
+  }
+  .callout strong {
+    color: var(--gc-red);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     font-size: 8.5pt;
-    color: #6b7280;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    margin-top: 24px;
+    padding-top: 10px;
+    border-top: 2px solid var(--gc-charcoal);
+    font-size: 8pt;
+    color: var(--gc-mute);
     display: flex;
     justify-content: space-between;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
   }
-
-  .callout {
-    background: #fffbeb;
-    border: 1px solid #fde68a;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 9.5pt;
-    margin-top: 14px;
+  .footer .gc-mark {
+    color: var(--gc-red);
+    font-weight: 800;
   }
-  .callout strong { color: #92400e; }
 
   @media print {
     body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
@@ -130,18 +223,24 @@
 </head>
 <body>
 
-<!-- ===== PAGE 1: WHAT YOU HAVE TODAY ===== -->
+<!-- ===================== PAGE 1: WHAT YOU HAVE TODAY ===================== -->
 <section class="page">
   <header class="brand">
-    <div>
-      <div class="brand-name">Goodman Classic</div>
-      <div class="brand-product">GC Inventory Hub</div>
+    <div class="brand-left">
+      <img class="brand-logo" src="goodman-classic-logo.jpg" alt="Goodman Classic">
+      <div class="brand-text">
+        <p class="brand-name">Goodman Classic</p>
+        <p class="brand-product">Inventory Hub</p>
+      </div>
     </div>
-    <div class="brand-tag">Feature Overview<br>What's running today &amp; what's available</div>
+    <div class="brand-tag">
+      Feature Overview<br>
+      <strong>What's running today</strong>
+    </div>
   </header>
 
-  <h1 class="section-title">What's running today</h1>
-  <p class="section-sub">These are live in your hub right now &mdash; everyone with access can use them.</p>
+  <h1 class="section-title">Live in your hub</h1>
+  <p class="section-sub">Every feature below is in production right now. All access is role-based — admin, office, store, and foreman each see the right slice.</p>
 
   <div class="grid">
     <div class="item">
@@ -150,7 +249,7 @@
     </div>
     <div class="item">
       <div class="item-label">Quotes &amp; Templates</div>
-      <div class="item-desc">Build quotes from reusable line-item bundles. Discount %/$, surplus pickup, and split-line cost layers.</div>
+      <div class="item-desc">Quotes from reusable line-item bundles. Discount %/$, surplus pickup, split-line cost layers.</div>
     </div>
     <div class="item">
       <div class="item-label">Build Tracker</div>
@@ -166,7 +265,7 @@
     </div>
     <div class="item">
       <div class="item-label">Invoices</div>
-      <div class="item-desc">Full line-item invoices with status flow (draft &rarr; sent &rarr; viewed &rarr; paid). Build &rarr; invoice in one click.</div>
+      <div class="item-desc">Full line-item invoices: draft &rarr; sent &rarr; viewed &rarr; paid. Build &rarr; invoice in one click.</div>
     </div>
     <div class="item">
       <div class="item-label">Transfers</div>
@@ -182,7 +281,7 @@
     </div>
     <div class="item">
       <div class="item-label">PO Auto-Generation</div>
-      <div class="item-desc">Build POs automatically for every item below its reorder point, grouped by preferred vendor.</div>
+      <div class="item-desc">POs built automatically for everything below reorder point, grouped by preferred vendor.</div>
     </div>
     <div class="item">
       <div class="item-label">Accounts Receivable / Payable</div>
@@ -190,54 +289,61 @@
     </div>
     <div class="item">
       <div class="item-label">Reports</div>
-      <div class="item-desc">Inventory value, low stock, build variance, surplus aging, inventory by location, and reorder suggestions.</div>
+      <div class="item-desc">Inventory value, low stock, build variance, surplus aging, location, reorder suggestions.</div>
     </div>
     <div class="item">
       <div class="item-label">Roles &amp; Permissions</div>
-      <div class="item-desc">Admin, office, store, and foreman roles &mdash; the right people see the right things.</div>
+      <div class="item-desc">Admin, office, store, foreman — the right people see the right things.</div>
     </div>
     <div class="item">
       <div class="item-label">CSV Import</div>
-      <div class="item-desc">One-time bulk import for migrating from existing inventory systems.</div>
+      <div class="item-desc">Bulk import for migrating from existing inventory systems.</div>
     </div>
   </div>
 
   <div class="callout">
-    <strong>How it fits together.</strong> A quote becomes a build. A build allocates and consumes inventory, then captures surplus on close-out. Surplus rolls back into the next quote at original cost. Closed builds turn into invoices in one click. Receiving against a PO updates inventory at the chosen location automatically. Every stock change goes through the same audited adjustment path.
+    <strong>How it fits together</strong>
+    A quote becomes a build. A build allocates and consumes inventory, then captures surplus on close-out. Surplus rolls back into the next quote at original cost. Closed builds turn into invoices in one click. Receiving against a PO updates inventory at the chosen location automatically — every stock change goes through the same audited adjustment path.
   </div>
 
   <div class="footer">
-    <span>GC Inventory Hub &mdash; Feature Overview</span>
+    <span><span class="gc-mark">GOODMAN CLASSIC</span> &middot; INVENTORY HUB</span>
     <span>Page 1 of 2</span>
   </div>
 </section>
 
-<!-- ===== PAGE 2: WHAT'S AVAILABLE ===== -->
+<!-- ===================== PAGE 2: WHAT'S AVAILABLE ===================== -->
 <section class="page">
   <header class="brand">
-    <div>
-      <div class="brand-name">Goodman Classic</div>
-      <div class="brand-product">GC Inventory Hub</div>
+    <div class="brand-left">
+      <img class="brand-logo" src="goodman-classic-logo.jpg" alt="Goodman Classic">
+      <div class="brand-text">
+        <p class="brand-name">Goodman Classic</p>
+        <p class="brand-product">Inventory Hub</p>
+      </div>
     </div>
-    <div class="brand-tag">Premium add-ons<br>&amp; features on the roadmap</div>
+    <div class="brand-tag">
+      Premium Add-Ons<br>
+      <strong>Grow with us</strong>
+    </div>
   </header>
 
   <h1 class="section-title">Premium features available</h1>
-  <p class="section-sub">Optional capabilities that can be added to your system &mdash; not on the roadmap by default, but ready to build when you're ready. Each is scoped and quoted separately.</p>
+  <p class="section-sub">Optional capabilities that can be added to your hub. Not on the default roadmap — each is scoped and quoted separately.</p>
 
   <div class="category">Operations</div>
   <div class="grid">
     <div class="item premium">
       <div class="item-label">Barcode / QR Scanning <span class="badge premium">Premium</span></div>
-      <div class="item-desc">Scan items with your phone camera for instant lookup, stock adjustments, and physical counts. Generate barcodes for bin locations.</div>
+      <div class="item-desc">Scan items with your phone for lookup, stock adjustments, and physical counts. Generate barcodes for bin locations.</div>
     </div>
     <div class="item premium">
       <div class="item-label">Delivery / Dispatch Tracker <span class="badge premium">Premium</span></div>
-      <div class="item-desc">Track deliveries to job sites: what's being sent, who's driving, when it left, estimated arrival. Foremen know what's coming.</div>
+      <div class="item-desc">Track deliveries to job sites: what's being sent, who's driving, ETA. Foremen know what's coming.</div>
     </div>
     <div class="item premium">
       <div class="item-label">Equipment / Tool Checkout <span class="badge premium">Premium</span></div>
-      <div class="item-desc">Track company tools and equipment checked out to crews. Know where everything is.</div>
+      <div class="item-desc">Track company tools and equipment checked out to crews. Always know where everything is.</div>
     </div>
   </div>
 
@@ -265,7 +371,7 @@
     </div>
     <div class="item premium">
       <div class="item-label">Warranty Tracking <span class="badge premium">Premium</span></div>
-      <div class="item-desc">Track warranties on items sold to customers. Get notified before warranties expire.</div>
+      <div class="item-desc">Track warranties on items sold to customers. Get notified before they expire.</div>
     </div>
   </div>
 
@@ -273,7 +379,7 @@
   <div class="grid">
     <div class="item premium">
       <div class="item-label">Job Costing <span class="badge premium">Premium</span></div>
-      <div class="item-desc">Full job cost breakdown: materials, labor, equipment, subcontractors. True profitability per build.</div>
+      <div class="item-desc">Materials, labor, equipment, subcontractors. True profitability per build.</div>
     </div>
     <div class="item premium">
       <div class="item-label">Vendor Price Comparison <span class="badge premium">Premium</span></div>
@@ -281,7 +387,7 @@
     </div>
     <div class="item premium">
       <div class="item-label">Customer Credit Tracking <span class="badge premium">Premium</span></div>
-      <div class="item-desc">Credit limits, payment history, and slow-payer flags. Know who to extend credit to.</div>
+      <div class="item-desc">Credit limits, payment history, slow-payer flags. Know who to extend credit to.</div>
     </div>
   </div>
 
@@ -289,7 +395,7 @@
   <div class="grid">
     <div class="item premium">
       <div class="item-label">Notifications &amp; Alerts <span class="badge premium">Premium</span></div>
-      <div class="item-desc">Email/push notifications for low stock, PO received, invoice viewed, build close-out, transfer arriving.</div>
+      <div class="item-desc">Email/push alerts for low stock, PO received, invoice viewed, build close-out, transfer arriving.</div>
     </div>
     <div class="item premium">
       <div class="item-label">Activity Feed <span class="badge premium">Premium</span></div>
@@ -301,12 +407,12 @@
     </div>
     <div class="item premium">
       <div class="item-label">Seasonal Demand Forecasting <span class="badge premium">Premium</span></div>
-      <div class="item-desc">Predict demand spikes from historical usage. Spring fencing, fall harvest prep &mdash; plan ahead.</div>
+      <div class="item-desc">Predict demand spikes from historical usage. Spring fencing, fall harvest prep — plan ahead.</div>
     </div>
   </div>
 
   <h1 class="section-title" style="margin-top: 22px;">On the roadmap</h1>
-  <p class="section-sub">Integrations actively planned &mdash; included as part of the build.</p>
+  <p class="section-sub">Integrations actively planned — included as part of the build.</p>
 
   <div class="grid">
     <div class="item soon">
@@ -320,7 +426,7 @@
   </div>
 
   <div class="footer">
-    <span>GC Inventory Hub &mdash; Feature Overview</span>
+    <span><span class="gc-mark">GOODMAN CLASSIC</span> &middot; INVENTORY HUB</span>
     <span>Page 2 of 2</span>
   </div>
 </section>
