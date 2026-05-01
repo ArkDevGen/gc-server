@@ -38,6 +38,12 @@ export default function QuoteDetail() {
 
   useEffect(() => { fetchQuote(); }, [id]);
 
+  // Load locations on mount so the Convert to Build modal has them ready
+  // even if the user never opens the Edit form (which also loads them).
+  useEffect(() => {
+    api.get('/items/locations/list').then((res) => setLocations(res.data)).catch(() => {});
+  }, []);
+
   const startEdit = () => {
     setEditForm({
       customer_id: quote.customer_id,
