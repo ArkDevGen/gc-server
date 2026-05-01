@@ -93,6 +93,12 @@ const premiumFeatures = [
     desc: 'Track warranties on items sold to customers. Get notified before warranties expire.',
     category: 'Customer Service',
   },
+  {
+    icon: Globe,
+    label: 'Website Sales Channel',
+    desc: 'Sync inventory and orders with your e-commerce site (Shopify, WooCommerce, etc.). Online orders auto-deduct stock and flow into the hub as invoices.',
+    category: 'Sales Channels',
+  },
 ];
 
 const comingSoonFeatures = [
