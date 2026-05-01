@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
-import { ArrowLeft, Pencil, Save, X, Hammer, Copy, Trash2 } from 'lucide-react';
+import { ArrowLeft, Pencil, Save, X, Hammer, Copy, Trash2, Recycle } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 
@@ -48,6 +48,10 @@ export default function QuoteDetail() {
     api.get('/items/locations/list').then((res) => setLocations(res.data)).catch(() => {});
   }, []);
 
+  const [surplus, setSurplus] = useState<any[]>([]);
+  const [discountType, setDiscountType] = useState<'percent' | 'amount'>('percent');
+  const [discountValue, setDiscountValue] = useState<string>('');
+
   const startEdit = () => {
     setEditForm({
       customer_id: quote.customer_id,
@@ -62,28 +66,123 @@ export default function QuoteDetail() {
       unit_cost: parseFloat(l.unit_cost),
       unit_price: parseFloat(l.unit_price),
       is_surplus: l.is_surplus || false,
+      surplus_location_id: l.surplus_location_id || undefined,
     })));
-    // Load items and customers for dropdowns
+    // Initialize discount inputs from existing quote
+    if (quote.discount_pct != null && parseFloat(quote.discount_pct) > 0) {
+      setDiscountType('percent');
+      setDiscountValue(String(parseFloat(quote.discount_pct)));
+    } else if (quote.discount_amount != null && parseFloat(quote.discount_amount) > 0) {
+      setDiscountType('amount');
+      setDiscountValue(String(parseFloat(quote.discount_amount)));
+    } else {
+      setDiscountType('percent');
+      setDiscountValue('');
+    }
+    // Load items, customers, locations, surplus pool for dropdowns/picker
     Promise.all([
       api.get('/items', { params: { limit: 200 } }),
       api.get('/customers'),
       api.get('/items/locations/list'),
-    ]).then(([i, c, l]) => {
+      api.get('/surplus', { params: { limit: 500 } }),
+    ]).then(([i, c, l, s]) => {
       setItems(i.data.data);
       setCustomers(c.data);
       setLocations(l.data);
+      setSurplus(s.data.data || []);
     });
     setEditing(true);
+  };
+
+  // Helpers replicated from CreateQuoteModal so edit-mode can use bulk surplus
+  const surplusForItem = (itemId: string): any[] =>
+    surplus.filter((s: any) => s.item_id === itemId);
+  const surplusTotalQty = (itemId: string): number =>
+    surplusForItem(itemId).reduce((sum, s) => sum + parseFloat(s.qty_available), 0);
+  const remainingSurplusForItem = (itemId: string, currentIdx: number, currentLines = editLines): number => {
+    const total = surplusTotalQty(itemId);
+    const claimed = currentLines.reduce((sum, l, i) => {
+      if (i === currentIdx) return sum;
+      if (l.item_id === itemId && l.is_surplus) return sum + (parseFloat(l.qty) || 0);
+      return sum;
+    }, 0);
+    return Math.max(0, total - claimed);
+  };
+  const freshCostFor = (itemId: string | undefined, fallback: number): number => {
+    if (!itemId) return fallback;
+    const item = items.find((i: any) => i.id === itemId);
+    const catalog = item ? parseFloat(item.cost_price) : 0;
+    if (catalog > 0) return catalog;
+    return fallback > 0 ? fallback : 0;
+  };
+
+  const useAllAvailableSurplus = () => {
+    let working = [...editLines];
+    let changed = 0;
+    let i = 0;
+    while (i < working.length) {
+      const line = working[i];
+      if (line.item_id && !line.is_surplus) {
+        const pool = surplusForItem(line.item_id);
+        const remaining = remainingSurplusForItem(line.item_id, i, working);
+        if (pool.length > 0 && remaining > 0) {
+          const sp = pool[0];
+          const requestedQty = parseFloat(line.qty) || 1;
+          const preToggleCost = parseFloat(line.unit_cost) || 0;
+          if (requestedQty <= remaining) {
+            working[i] = {
+              ...line,
+              is_surplus: true,
+              surplus_location_id: sp.location_id,
+              unit_cost: parseFloat(sp.original_cost),
+            };
+            changed++;
+          } else {
+            const leftover = requestedQty - remaining;
+            working[i] = {
+              ...line,
+              is_surplus: true,
+              surplus_location_id: sp.location_id,
+              unit_cost: parseFloat(sp.original_cost),
+              qty: remaining,
+            };
+            working.splice(i + 1, 0, {
+              item_id: line.item_id,
+              description: line.description,
+              qty: leftover,
+              unit_cost: freshCostFor(line.item_id, preToggleCost),
+              unit_price: line.unit_price,
+              is_surplus: false,
+              surplus_location_id: undefined,
+            });
+            changed++;
+            i++;
+          }
+        }
+      }
+      i++;
+    }
+    setEditLines(working);
+    if (changed > 0) toast.success(`Allocated surplus on ${changed} line${changed === 1 ? '' : 's'}.`);
+    else toast.info('No additional surplus could be allocated.');
   };
 
   const handleSave = async () => {
     setSaving(true); setError('');
     try {
-      await api.patch(`/quotes/${id}`, {
+      const payload: any = {
         ...editForm,
         valid_until: editForm.valid_until || undefined,
         lines: editLines.map((l: any) => ({ ...l, item_id: l.item_id || undefined })),
-      });
+        discount_pct: null,
+        discount_amount: null,
+      };
+      const dNum = parseFloat(discountValue) || 0;
+      if (dNum > 0) {
+        if (discountType === 'percent') payload.discount_pct = dNum;
+        else payload.discount_amount = dNum;
+      }
+      await api.patch(`/quotes/${id}`, payload);
       setEditing(false);
       fetchQuote();
     } catch (err: any) { setError(err.response?.data?.error || 'Failed to save'); }
@@ -149,9 +248,36 @@ export default function QuoteDetail() {
   if (loading) return <div className="text-center py-12 text-gray-500">Loading...</div>;
   if (!quote) return <div className="text-center py-12 text-gray-500">Quote not found</div>;
 
-  const total = editing
+  // Subtotal / discount / total preview while editing; saved values when viewing
+  const subtotal = editing
     ? editLines.reduce((s: number, l: any) => s + l.qty * l.unit_price, 0)
+    : parseFloat(quote.subtotal || quote.total);
+  const discountNum = parseFloat(discountValue) || 0;
+  const discountApplied = editing
+    ? (discountType === 'percent'
+        ? subtotal * (Math.min(100, Math.max(0, discountNum)) / 100)
+        : Math.min(discountNum, subtotal))
+    : (() => {
+        if (quote.discount_pct != null && parseFloat(quote.discount_pct) > 0) {
+          return parseFloat(quote.subtotal || 0) * (parseFloat(quote.discount_pct) / 100);
+        }
+        if (quote.discount_amount != null) return parseFloat(quote.discount_amount);
+        return 0;
+      })();
+  const total = editing
+    ? Math.max(0, subtotal - discountApplied)
     : parseFloat(quote.total);
+
+  // Surplus savings: cost difference between fresh stock and surplus, summed
+  const linesForSavings = editing ? editLines : quote.lines || [];
+  const surplusSavings = linesForSavings.reduce((sum: number, l: any) => {
+    if (!l.is_surplus || !l.item_id) return sum;
+    const item = items.find((i: any) => i.id === l.item_id);
+    const freshCost = item ? parseFloat(item.cost_price) : 0;
+    const surplusCost = parseFloat(l.unit_cost) || 0;
+    const savings = (freshCost - surplusCost) * (parseFloat(l.qty) || 0);
+    return sum + Math.max(0, savings);
+  }, 0);
 
   return (
     <div>
@@ -213,6 +339,9 @@ export default function QuoteDetail() {
           <div>
             <p className="text-sm text-gray-500">Total</p>
             <p className="text-2xl font-bold">${total.toFixed(2)}</p>
+            {discountApplied > 0 && (
+              <p className="text-xs text-gray-400 mt-0.5">${subtotal.toFixed(2)} subtotal &minus; ${discountApplied.toFixed(2)} discount</p>
+            )}
           </div>
           <div>
             <p className="text-sm text-gray-500">Margin</p>
@@ -229,8 +358,14 @@ export default function QuoteDetail() {
             <p className="text-2xl font-bold">{quote.lines?.length || 0}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Created By</p>
-            <p className="text-lg font-medium">{quote.created_by_name}</p>
+            <p className="text-sm text-gray-500">{surplusSavings > 0 ? 'Surplus Savings' : 'Created By'}</p>
+            {surplusSavings > 0 ? (
+              <p className="text-2xl font-bold text-amber-600 flex items-center gap-1.5">
+                <Recycle size={20} /> ${surplusSavings.toFixed(2)}
+              </p>
+            ) : (
+              <p className="text-lg font-medium">{quote.created_by_name}</p>
+            )}
           </div>
         </div>
       </div>
@@ -325,49 +460,130 @@ export default function QuoteDetail() {
                 </tr>
               ))
             ) : (
-              quote.lines?.map((line: any, idx: number) => {
-                // "Surplus available" hint should only show when there's
-                // surplus REMAINING after accounting for what other lines
-                // on THIS quote are already consuming. Otherwise it's
-                // misleading (the available count is already claimed).
-                let remainingAvailable = 0;
-                if (!line.is_surplus && line.surplus_available?.length > 0 && line.item_id) {
-                  const totalAvailable = line.surplus_available.reduce(
+              (() => {
+                // Group adjacent lines that share the same item_id so a
+                // surplus + fresh split for the same item renders as one
+                // logical row with sub-rows for the breakdown.
+                const groups: any[][] = [];
+                for (const line of quote.lines || []) {
+                  const last = groups[groups.length - 1];
+                  if (last && last[0]?.item_id && line.item_id && last[0].item_id === line.item_id) {
+                    last.push(line);
+                  } else {
+                    groups.push([line]);
+                  }
+                }
+
+                // Calc remaining surplus headroom per item (only relevant for groups
+                // that don't already use surplus — to surface "surplus still available")
+                const remainingForItem = (itemId: string): number => {
+                  const sourceLine = (quote.lines || []).find((l: any) =>
+                    l.item_id === itemId && l.surplus_available?.length > 0
+                  );
+                  if (!sourceLine) return 0;
+                  const totalAvailable = sourceLine.surplus_available.reduce(
                     (s: number, sp: any) => s + parseFloat(sp.qty_available), 0
                   );
-                  const claimedByOthers = (quote.lines || []).reduce((s: number, other: any) => {
-                    if (other.id === line.id) return s;
-                    if (other.item_id === line.item_id && other.is_surplus) {
-                      return s + parseFloat(other.qty);
-                    }
+                  const claimed = (quote.lines || []).reduce((s: number, l: any) => {
+                    if (l.item_id === itemId && l.is_surplus) return s + parseFloat(l.qty);
                     return s;
                   }, 0);
-                  remainingAvailable = Math.max(0, totalAvailable - claimedByOthers);
-                }
-                return (
-                  <tr key={line.id} className="border-b last:border-0">
-                    <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                    <td className="px-4 py-3">
-                      <span className="font-medium">{line.item_name || line.description}</span>
-                      {line.item_sku && <span className="text-xs text-gray-400 ml-2">{line.item_sku}</span>}
-                      {line.is_surplus && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Surplus</span>}
-                      {remainingAvailable > 0 && (
-                        <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
-                          Surplus available: {remainingAvailable}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono">{parseFloat(line.qty).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-500">${parseFloat(line.unit_cost).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right font-mono">${parseFloat(line.unit_price).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold">${parseFloat(line.line_total).toFixed(2)}</td>
-                  </tr>
-                );
-              })
+                  return Math.max(0, totalAvailable - claimed);
+                };
+
+                let displayNum = 0;
+                return groups.flatMap((group, gi) => {
+                  displayNum++;
+                  if (group.length === 1) {
+                    const line = group[0];
+                    const remainingAvailable =
+                      !line.is_surplus && line.item_id ? remainingForItem(line.item_id) : 0;
+                    return [(
+                      <tr key={line.id} className="border-b last:border-0">
+                        <td className="px-4 py-3 text-gray-400">{displayNum}</td>
+                        <td className="px-4 py-3">
+                          <span className="font-medium">{line.item_name || line.description}</span>
+                          {line.item_sku && <span className="text-xs text-gray-400 ml-2">{line.item_sku}</span>}
+                          {line.is_surplus && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Surplus</span>}
+                          {remainingAvailable > 0 && (
+                            <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                              Surplus available: {remainingAvailable}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono">{parseFloat(line.qty).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-500">${parseFloat(line.unit_cost).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-mono">${parseFloat(line.unit_price).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-mono font-bold">${parseFloat(line.line_total).toFixed(2)}</td>
+                      </tr>
+                    )];
+                  }
+
+                  // Multi-line group: parent row + indented sub-rows
+                  const totalQty = group.reduce((s, l) => s + parseFloat(l.qty), 0);
+                  const totalLine = group.reduce((s, l) => s + parseFloat(l.line_total), 0);
+                  const totalCost = group.reduce((s, l) => s + parseFloat(l.qty) * parseFloat(l.unit_cost), 0);
+                  const blendedCost = totalQty > 0 ? totalCost / totalQty : 0;
+                  const blendedPrice = totalQty > 0 ? totalLine / totalQty : 0;
+                  const head = group[0];
+                  const surplusQty = group.filter((l) => l.is_surplus).reduce((s, l) => s + parseFloat(l.qty), 0);
+
+                  const rows: any[] = [(
+                    <tr key={`g${gi}`} className="bg-gray-50/60">
+                      <td className="px-4 py-3 text-gray-400 align-top">{displayNum}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-medium">{head.item_name || head.description}</span>
+                        {head.item_sku && <span className="text-xs text-gray-400 ml-2">{head.item_sku}</span>}
+                        {surplusQty > 0 && (
+                          <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                            <Recycle size={10} /> {surplusQty} from surplus
+                          </span>
+                        )}
+                        <p className="text-xs text-gray-500 mt-0.5">Split across {group.length} cost layers</p>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">{totalQty.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-mono text-gray-500">${blendedCost.toFixed(2)}<span className="text-[10px] text-gray-400 ml-0.5">avg</span></td>
+                      <td className="px-4 py-3 text-right font-mono">${blendedPrice.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right font-mono font-bold">${totalLine.toFixed(2)}</td>
+                    </tr>
+                  )];
+                  for (const line of group) {
+                    rows.push(
+                      <tr key={line.id} className="border-b last:border-0 text-sm">
+                        <td className="px-4 py-2 text-gray-300 text-right">↳</td>
+                        <td className="px-4 py-2 pl-10 text-gray-600">
+                          {line.is_surplus
+                            ? <span className="inline-flex items-center gap-1 text-amber-700"><Recycle size={11} /> Surplus{line.surplus_location_name ? ` (from ${line.surplus_location_name})` : ''}</span>
+                            : <span>Fresh stock</span>}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono">{parseFloat(line.qty).toLocaleString()}</td>
+                        <td className="px-4 py-2 text-right font-mono text-gray-500">${parseFloat(line.unit_cost).toFixed(2)}</td>
+                        <td className="px-4 py-2 text-right font-mono">${parseFloat(line.unit_price).toFixed(2)}</td>
+                        <td className="px-4 py-2 text-right font-mono">${parseFloat(line.line_total).toFixed(2)}</td>
+                      </tr>
+                    );
+                  }
+                  return rows;
+                });
+              })()
             )}
           </tbody>
           {!editing && (
             <tfoot>
+              {discountApplied > 0 && (
+                <>
+                  <tr className="bg-gray-50 border-t">
+                    <td colSpan={5} className="px-4 py-2 text-right text-gray-600 text-sm">Subtotal</td>
+                    <td className="px-4 py-2 text-right font-mono text-sm">${subtotal.toFixed(2)}</td>
+                  </tr>
+                  <tr className="bg-gray-50">
+                    <td colSpan={5} className="px-4 py-2 text-right text-red-600 text-sm">
+                      Discount{quote.discount_pct != null && parseFloat(quote.discount_pct) > 0 ? ` (${parseFloat(quote.discount_pct)}%)` : ''}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-red-600 text-sm">- ${discountApplied.toFixed(2)}</td>
+                  </tr>
+                </>
+              )}
               <tr className="bg-gray-50 border-t">
                 <td colSpan={5} className="px-4 py-3 text-right font-medium">Total</td>
                 <td className="px-4 py-3 text-right font-mono font-bold text-lg">${total.toFixed(2)}</td>
@@ -375,6 +591,57 @@ export default function QuoteDetail() {
             </tfoot>
           )}
         </table>
+
+        {/* Edit-mode discount UI + bulk surplus action */}
+        {editing && (
+          <div className="px-4 py-4 border-t bg-gray-50 space-y-3">
+            {editLines.some((l: any, i: number) => l.item_id && !l.is_surplus && remainingSurplusForItem(l.item_id, i) > 0) && (
+              <div>
+                <button type="button"
+                  onClick={useAllAvailableSurplus}
+                  className="flex items-center gap-1.5 text-sm text-amber-700 hover:text-amber-800 font-medium">
+                  <Recycle size={14} /> Use all available surplus
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Discount (optional)</label>
+                <div className="flex">
+                  <button type="button"
+                    onClick={() => setDiscountType('percent')}
+                    className={`px-3 py-2 text-sm font-medium border rounded-l-lg ${discountType === 'percent' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>%</button>
+                  <button type="button"
+                    onClick={() => setDiscountType('amount')}
+                    className={`px-3 py-2 text-sm font-medium border-y border-r ${discountType === 'amount' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>$</button>
+                  <input type="number" min="0" step="0.01"
+                    max={discountType === 'percent' ? 100 : undefined}
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    placeholder="0"
+                    className="flex-1 px-3 py-2 border-y border-r rounded-r-lg text-sm" />
+                </div>
+              </div>
+              <div className="text-right space-y-1">
+                <div className="flex justify-end gap-3 text-sm">
+                  <span className="text-gray-500">Subtotal</span>
+                  <span className="font-mono w-28">${subtotal.toFixed(2)}</span>
+                </div>
+                {discountApplied > 0 && (
+                  <div className="flex justify-end gap-3 text-sm text-red-600">
+                    <span>Discount</span>
+                    <span className="font-mono w-28">- ${discountApplied.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-end gap-3 text-lg font-bold">
+                  <span>Total</span>
+                  <span className="font-mono w-28">${total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {showConvert && (

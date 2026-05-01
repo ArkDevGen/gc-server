@@ -7,6 +7,8 @@ import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
 import PageHelp from '../components/ui/PageHelp';
 import { TemplatesManagerModal } from '../components/TemplatesManager';
+import { useToast } from '../components/ui/Toast';
+import { Recycle } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -183,12 +185,15 @@ interface SurplusEntry {
 }
 
 function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const toast = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [surplus, setSurplus] = useState<SurplusEntry[]>([]);
   const [form, setForm] = useState({ customer_id: '', valid_until: '', notes: '' });
   const [lines, setLines] = useState<any[]>([{ item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0, is_surplus: false, surplus_location_id: undefined }]);
+  const [discountType, setDiscountType] = useState<'percent' | 'amount'>('percent');
+  const [discountValue, setDiscountValue] = useState<string>('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [customerHistory, setCustomerHistory] = useState<any[]>([]);
@@ -350,13 +355,96 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
   const removeLine = (idx: number) => { if (lines.length > 1) setLines(lines.filter((_, i) => i !== idx)); };
 
-  const total = lines.reduce((sum, l) => sum + l.qty * l.unit_price, 0);
+  // Walk every fresh line that has surplus available and split it the same
+  // way clicking the per-line "Use surplus" toggle would. Returns the count
+  // of lines actually changed so we can show a meaningful confirmation.
+  const useAllAvailableSurplus = (): number => {
+    let working = [...lines];
+    let changed = 0;
+    let i = 0;
+    while (i < working.length) {
+      const line = working[i];
+      if (line.item_id && !line.is_surplus) {
+        const pool = surplusForItem(line.item_id);
+        const remaining = remainingSurplusForItem(line.item_id, i, working);
+        if (pool.length > 0 && remaining > 0) {
+          const sp = pool[0];
+          const requestedQty = parseFloat(line.qty) || 1;
+          const preToggleCost = parseFloat(line.unit_cost) || 0;
+          if (requestedQty <= remaining) {
+            // Whole line fits in surplus
+            working[i] = {
+              ...line,
+              is_surplus: true,
+              surplus_location_id: sp.location_id,
+              unit_cost: parseFloat(sp.original_cost),
+            };
+            changed++;
+          } else {
+            // Split: this line takes the remaining surplus, new fresh line for the rest
+            const leftover = requestedQty - remaining;
+            working[i] = {
+              ...line,
+              is_surplus: true,
+              surplus_location_id: sp.location_id,
+              unit_cost: parseFloat(sp.original_cost),
+              qty: remaining,
+            };
+            working.splice(i + 1, 0, {
+              item_id: line.item_id,
+              description: line.description,
+              qty: leftover,
+              unit_cost: freshCostFor(line.item_id, preToggleCost),
+              unit_price: line.unit_price,
+              is_surplus: false,
+              surplus_location_id: undefined,
+            });
+            changed++;
+            i++; // skip the freshly inserted line
+          }
+        }
+      }
+      i++;
+    }
+    setLines(working);
+    return changed;
+  };
+
+  // Subtotal before discount
+  const subtotal = lines.reduce((sum, l) => sum + l.qty * l.unit_price, 0);
+
+  // Discount calc preview
+  const discountNum = parseFloat(discountValue) || 0;
+  const discountApplied =
+    discountType === 'percent'
+      ? subtotal * (Math.min(100, Math.max(0, discountNum)) / 100)
+      : Math.min(discountNum, subtotal);
+  const total = Math.max(0, subtotal - discountApplied);
+
+  // Surplus savings on this quote (informational): for each surplus line,
+  // (item.cost_price - line.unit_cost) * qty = saved cost vs fresh stock
+  const surplusSavings = lines.reduce((sum, l) => {
+    if (!l.is_surplus || !l.item_id) return sum;
+    const item = items.find((i) => i.id === l.item_id);
+    const freshCost = item ? parseFloat(item.cost_price) : 0;
+    const surplusCost = parseFloat(l.unit_cost) || 0;
+    const savings = (freshCost - surplusCost) * (parseFloat(l.qty) || 0);
+    return sum + Math.max(0, savings);
+  }, 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true); setError('');
     try {
-      await api.post('/quotes', { ...form, lines: lines.map((l) => ({ ...l, item_id: l.item_id || undefined })) });
+      const payload: any = {
+        ...form,
+        lines: lines.map((l) => ({ ...l, item_id: l.item_id || undefined })),
+      };
+      if (discountValue && discountNum > 0) {
+        if (discountType === 'percent') payload.discount_pct = discountNum;
+        else payload.discount_amount = discountNum;
+      }
+      await api.post('/quotes', payload);
       onCreated();
     } catch (err: any) { setError(err.response?.data?.error || 'Failed'); }
     finally { setSaving(false); }
@@ -417,9 +505,23 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
           )}
 
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <label className="text-sm font-medium text-gray-700">Line Items</label>
-              <button type="button" onClick={addLine} className="text-sm text-primary-600 hover:text-primary-700 font-medium">+ Add Line</button>
+              <div className="flex items-center gap-3">
+                {/* Show "Use all surplus" when at least one fresh line has surplus available */}
+                {lines.some((l, i) => l.item_id && !l.is_surplus && remainingSurplusForItem(l.item_id, i) > 0) && (
+                  <button type="button"
+                    onClick={() => {
+                      const n = useAllAvailableSurplus();
+                      if (n > 0) toast.success(`Allocated surplus on ${n} line${n === 1 ? '' : 's'}.`);
+                      else toast.info('No additional surplus could be allocated.');
+                    }}
+                    className="flex items-center gap-1.5 text-sm text-amber-700 hover:text-amber-800 font-medium">
+                    <Recycle size={14} /> Use all available surplus
+                  </button>
+                )}
+                <button type="button" onClick={addLine} className="text-sm text-primary-600 hover:text-primary-700 font-medium">+ Add Line</button>
+              </div>
             </div>
 
             {/* Column headers */}
@@ -507,7 +609,53 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 );
               })}
             </div>
-            <div className="text-right mt-2 text-lg font-bold">Total: ${total.toFixed(2)}</div>
+            <div className="mt-3 pt-3 border-t space-y-2">
+              {surplusSavings > 0 && (
+                <div className="flex items-center gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  <Recycle size={14} />
+                  <span>
+                    <strong>${surplusSavings.toFixed(2)}</strong> in surplus material being reused on this quote.
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount (optional)</label>
+                  <div className="flex">
+                    <button type="button"
+                      onClick={() => setDiscountType('percent')}
+                      className={`px-3 py-2 text-sm font-medium border rounded-l-lg ${discountType === 'percent' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>%</button>
+                    <button type="button"
+                      onClick={() => setDiscountType('amount')}
+                      className={`px-3 py-2 text-sm font-medium border-y border-r ${discountType === 'amount' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>$</button>
+                    <input type="number" min="0" step="0.01"
+                      max={discountType === 'percent' ? 100 : undefined}
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                      placeholder="0"
+                      className="flex-1 px-3 py-2 border-y border-r rounded-r-lg text-sm" />
+                  </div>
+                </div>
+
+                <div className="text-right space-y-1">
+                  <div className="flex justify-end gap-3 text-sm">
+                    <span className="text-gray-500">Subtotal</span>
+                    <span className="font-mono w-24">${subtotal.toFixed(2)}</span>
+                  </div>
+                  {discountApplied > 0 && (
+                    <div className="flex justify-end gap-3 text-sm text-red-600">
+                      <span>Discount</span>
+                      <span className="font-mono w-24">- ${discountApplied.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-3 text-lg font-bold">
+                    <span>Total</span>
+                    <span className="font-mono w-24">${total.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div>

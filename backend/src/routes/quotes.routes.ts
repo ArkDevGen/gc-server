@@ -13,6 +13,8 @@ const createQuoteSchema = z.object({
   customer_id: z.string().uuid(),
   valid_until: z.string().optional(),
   notes: z.string().optional(),
+  discount_pct: z.number().min(0).max(100).nullable().optional(),
+  discount_amount: z.number().min(0).nullable().optional(),
   lines: z.array(z.object({
     item_id: z.string().uuid().optional(),
     description: z.string().min(1),
@@ -29,6 +31,8 @@ const updateQuoteSchema = z.object({
   valid_until: z.string().optional(),
   notes: z.string().optional(),
   status: z.enum(['draft', 'sent', 'accepted', 'rejected', 'expired']).optional(),
+  discount_pct: z.number().min(0).max(100).nullable().optional(),
+  discount_amount: z.number().min(0).nullable().optional(),
   lines: z.array(z.object({
     item_id: z.string().uuid().optional(),
     description: z.string().min(1),
@@ -135,24 +139,49 @@ router.get('/:id', requireAuth, async (req: Request, res: Response, next: NextFu
   }
 });
 
+// Computes subtotal, discount, total, margin% from lines + discount inputs.
+// Discount is applied to subtotal before tax: total = subtotal - discount.
+// Margin is calculated on the *discounted* total against cost.
+function computeQuoteTotals(
+  lines: any[],
+  discountPct: number | null | undefined,
+  discountAmount: number | null | undefined,
+) {
+  const subtotal = lines.reduce((sum: number, l: any) => sum + l.qty * l.unit_price, 0);
+  const costTotal = lines.reduce((sum: number, l: any) => sum + l.qty * l.unit_cost, 0);
+  let discount = 0;
+  if (discountPct != null && discountPct > 0) {
+    discount = subtotal * (Number(discountPct) / 100);
+  } else if (discountAmount != null && discountAmount > 0) {
+    discount = Math.min(Number(discountAmount), subtotal);
+  }
+  const total = Math.max(0, subtotal - discount);
+  const marginPct = total > 0 ? ((total - costTotal) / total) * 100 : 0;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  return {
+    subtotal: round2(subtotal),
+    discount: round2(discount),
+    total: round2(total),
+    marginPct: round2(marginPct),
+  };
+}
+
 // POST /api/quotes
 router.post('/', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), validate(createQuoteSchema),
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     const client = await getClient();
     try {
       await client.query('BEGIN');
-      const { customer_id, valid_until, notes, lines } = req.body;
+      const { customer_id, valid_until, notes, lines, discount_pct, discount_amount } = req.body;
       const quoteNumber = await getNextNumber('quotes', 'quote_number', 'QT');
 
-      const subtotal = lines.reduce((sum: number, l: any) => sum + l.qty * l.unit_price, 0);
-      const costTotal = lines.reduce((sum: number, l: any) => sum + l.qty * l.unit_cost, 0);
-      const marginPct = subtotal > 0 ? ((subtotal - costTotal) / subtotal) * 100 : 0;
+      const { subtotal, total, marginPct } = computeQuoteTotals(lines, discount_pct, discount_amount);
 
       const quoteResult = await client.query(
-        `INSERT INTO quotes (quote_number, customer_id, valid_until, subtotal, total, margin_pct, notes, created_by)
-         VALUES ($1, $2, $3, $4, $4, $5, $6, $7) RETURNING *`,
-        [quoteNumber, customer_id, valid_until || null, Math.round(subtotal * 100) / 100,
-         Math.round(marginPct * 100) / 100, notes || null, req.user!.userId]
+        `INSERT INTO quotes (quote_number, customer_id, valid_until, subtotal, total, margin_pct, discount_pct, discount_amount, notes, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [quoteNumber, customer_id, valid_until || null, subtotal, total, marginPct,
+         discount_pct ?? null, discount_amount ?? null, notes || null, req.user!.userId]
       );
 
       for (let i = 0; i < lines.length; i++) {
@@ -183,33 +212,32 @@ router.patch('/:id', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), 
     try {
       await client.query('BEGIN');
       const quoteId = req.params.id as string;
-      const { customer_id, valid_until, notes, status, lines } = req.body;
+      const { customer_id, valid_until, notes, status, lines, discount_pct, discount_amount } = req.body;
 
-      // Update quote header
-      if (customer_id || valid_until || notes !== undefined || status) {
+      // Update quote header (covers status changes too)
+      const headerHasChanges =
+        customer_id !== undefined || valid_until !== undefined || notes !== undefined ||
+        status !== undefined || discount_pct !== undefined || discount_amount !== undefined;
+      if (headerHasChanges) {
         await client.query(
           `UPDATE quotes SET
             customer_id = COALESCE($1, customer_id),
             valid_until = COALESCE($2, valid_until),
             notes = COALESCE($3, notes),
-            status = COALESCE($4, status)
-           WHERE id = $5`,
-          [customer_id, valid_until, notes, status, quoteId]
+            status = COALESCE($4, status),
+            discount_pct = $5,
+            discount_amount = $6
+           WHERE id = $7`,
+          [customer_id, valid_until, notes, status,
+           discount_pct === undefined ? null : discount_pct,
+           discount_amount === undefined ? null : discount_amount,
+           quoteId]
         );
       }
 
       // Replace lines if provided
       if (lines) {
         await client.query('DELETE FROM quote_lines WHERE quote_id = $1', [quoteId]);
-
-        const subtotal = lines.reduce((sum: number, l: any) => sum + l.qty * l.unit_price, 0);
-        const costTotal = lines.reduce((sum: number, l: any) => sum + l.qty * l.unit_cost, 0);
-        const marginPct = subtotal > 0 ? ((subtotal - costTotal) / subtotal) * 100 : 0;
-
-        await client.query(
-          'UPDATE quotes SET subtotal = $1, total = $1, margin_pct = $2 WHERE id = $3',
-          [Math.round(subtotal * 100) / 100, Math.round(marginPct * 100) / 100, quoteId]
-        );
 
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
@@ -220,6 +248,29 @@ router.patch('/:id', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), 
              line.unit_cost, line.unit_price, line.is_surplus, line.surplus_location_id || null]
           );
         }
+      }
+
+      // Recompute totals if either lines or discount changed
+      if (lines || discount_pct !== undefined || discount_amount !== undefined) {
+        const currentLinesRes = await client.query(
+          'SELECT qty, unit_cost, unit_price FROM quote_lines WHERE quote_id = $1', [quoteId]
+        );
+        const currentDiscountRes = await client.query(
+          'SELECT discount_pct, discount_amount FROM quotes WHERE id = $1', [quoteId]
+        );
+        const dPct = currentDiscountRes.rows[0].discount_pct;
+        const dAmount = currentDiscountRes.rows[0].discount_amount;
+        const { subtotal, total, marginPct } = computeQuoteTotals(
+          currentLinesRes.rows.map((r: any) => ({
+            qty: parseFloat(r.qty), unit_cost: parseFloat(r.unit_cost), unit_price: parseFloat(r.unit_price),
+          })),
+          dPct === null ? null : parseFloat(dPct),
+          dAmount === null ? null : parseFloat(dAmount),
+        );
+        await client.query(
+          'UPDATE quotes SET subtotal = $1, total = $2, margin_pct = $3 WHERE id = $4',
+          [subtotal, total, marginPct, quoteId]
+        );
       }
 
       await client.query('COMMIT');
