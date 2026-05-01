@@ -26,6 +26,7 @@ export default function QuoteDetail() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState('');
+  const [showConvert, setShowConvert] = useState(false);
 
   const fetchQuote = async () => {
     try {
@@ -79,21 +80,17 @@ export default function QuoteDetail() {
     finally { setSaving(false); }
   };
 
-  const handleConvertToBuild = async () => {
-    const name = prompt('Build name:', `${quote.customer_name} - ${quote.quote_number}`);
-    if (!name) return;
+  const handleConvertToBuild = async (name: string, locationId: string) => {
     setActionLoading('convert');
     try {
-      const locationId = locations[0]?.id;
-      if (!locationId) {
-        await api.get('/items/locations/list').then((res) => setLocations(res.data));
-        alert('Please try again — locations loaded');
-        return;
-      }
       const res = await api.post(`/quotes/${id}/convert-to-build`, { name, location_id: locationId });
+      setShowConvert(false);
       navigate(`/builds/${res.data.id}`);
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed'); }
-    finally { setActionLoading(''); }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to convert quote');
+    } finally {
+      setActionLoading('');
+    }
   };
 
   const handleDelete = async () => {
@@ -164,7 +161,7 @@ export default function QuoteDetail() {
                   <Pencil size={14} /> Edit
                 </button>
                 {(quote.status === 'draft' || quote.status === 'accepted') && (
-                  <button onClick={handleConvertToBuild} disabled={!!actionLoading}
+                  <button onClick={() => setShowConvert(true)} disabled={!!actionLoading}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50">
                     <Hammer size={14} /> {actionLoading === 'convert' ? 'Converting...' : 'Convert to Build'}
                   </button>
@@ -337,6 +334,101 @@ export default function QuoteDetail() {
             </tfoot>
           )}
         </table>
+      </div>
+
+      {showConvert && (
+        <ConvertToBuildModal
+          quote={quote}
+          locations={locations}
+          saving={actionLoading === 'convert'}
+          onClose={() => setShowConvert(false)}
+          onConfirm={(name, locationId) => handleConvertToBuild(name, locationId)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConvertToBuildModal({ quote, locations, saving, onClose, onConfirm }: {
+  quote: any;
+  locations: any[];
+  saving: boolean;
+  onClose: () => void;
+  onConfirm: (name: string, locationId: string) => void;
+}) {
+  const [name, setName] = useState(`${quote.customer_name} - ${quote.quote_number}`);
+  const [locationId, setLocationId] = useState(locations[0]?.id || '');
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Hammer size={18} className="text-green-600" /> Convert to Build
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!name.trim() || !locationId) return;
+            onConfirm(name.trim(), locationId);
+          }}
+          className="p-4 space-y-4"
+        >
+          <p className="text-sm text-gray-600">
+            This creates a new build with all line items from quote{' '}
+            <span className="font-mono font-medium">{quote.quote_number}</span> as allocated materials.
+            The quote will be marked as Converted.
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Build Name *</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="w-full px-3 py-2 border rounded-lg text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">How this build will be identified in lists and reports.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Source Location *</label>
+            <select
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              required
+              className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
+            >
+              <option value="">Select a location</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Where stock will be drawn from when material usage is recorded.</p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 border rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !name.trim() || !locationId}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              <Hammer size={14} /> {saving ? 'Converting...' : 'Create Build'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
