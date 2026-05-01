@@ -9,6 +9,7 @@ const router = Router();
 
 const customerSchema = z.object({
   name: z.string().min(1).max(255),
+  contact_name: z.string().max(255).optional().nullable(),
   email: z.string().email().optional().nullable().or(z.literal('')),
   phone: z.string().max(50).optional().nullable(),
   address: z.string().optional().nullable(),
@@ -28,7 +29,7 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
       sql += ' AND is_active = true';
     }
     if (search) {
-      sql += ` AND (name ILIKE $${idx} OR email ILIKE $${idx})`;
+      sql += ` AND (name ILIKE $${idx} OR email ILIKE $${idx} OR contact_name ILIKE $${idx})`;
       params.push(`%${search}%`);
       idx++;
     }
@@ -56,10 +57,11 @@ router.get('/:id', requireAuth, async (req: Request, res: Response, next: NextFu
 router.post('/', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), validate(customerSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, email, phone, address } = req.body;
+      const { name, contact_name, email, phone, address } = req.body;
       const result = await query(
-        'INSERT INTO customers (name, email, phone, address) VALUES ($1, $2, $3, $4) RETURNING *',
-        [name, email || null, phone || null, address || null]
+        `INSERT INTO customers (name, contact_name, email, phone, address)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [name, contact_name || null, email || null, phone || null, address || null]
       );
       res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -72,16 +74,17 @@ router.post('/', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), vali
 router.patch('/:id', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, email, phone, address, is_active } = req.body;
+      const { name, contact_name, email, phone, address, is_active } = req.body;
       const result = await query(
         `UPDATE customers SET
            name = COALESCE($1, name),
-           email = COALESCE($2, email),
-           phone = COALESCE($3, phone),
-           address = COALESCE($4, address),
-           is_active = COALESCE($5, is_active)
-         WHERE id = $6 RETURNING *`,
-        [name, email, phone, address, is_active, req.params.id]
+           contact_name = COALESCE($2, contact_name),
+           email = COALESCE($3, email),
+           phone = COALESCE($4, phone),
+           address = COALESCE($5, address),
+           is_active = COALESCE($6, is_active)
+         WHERE id = $7 RETURNING *`,
+        [name, contact_name, email, phone, address, is_active, req.params.id]
       );
       if (result.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
       res.json(result.rows[0]);

@@ -955,6 +955,7 @@ function VendorModal({ vendor, onClose, onSaved }: {
 interface Customer {
   id: string;
   name: string;
+  contact_name: string | null;
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -985,6 +986,7 @@ function CustomersPanel() {
     if (!search) return true;
     const q = search.toLowerCase();
     return c.name.toLowerCase().includes(q)
+      || (c.contact_name?.toLowerCase().includes(q) ?? false)
       || (c.email?.toLowerCase().includes(q) ?? false);
   });
 
@@ -1015,7 +1017,8 @@ function CustomersPanel() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b">
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Contact</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Address</th>
@@ -1025,15 +1028,16 @@ function CustomersPanel() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                 <UserCheck size={32} className="mx-auto mb-2 text-gray-300" />
                 No customers found. Click "+ New Customer" to add one.
               </td></tr>
             ) : filtered.map((c) => (
               <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium">{c.name}</td>
+                <td className="px-4 py-3 text-gray-600">{c.contact_name || '--'}</td>
                 <td className="px-4 py-3 text-gray-600 text-xs">{c.email || '--'}</td>
                 <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.phone || '--'}</td>
                 <td className="px-4 py-3 text-gray-600 text-xs truncate max-w-xs">{c.address || '--'}</td>
@@ -1077,6 +1081,7 @@ function CustomerModal({ customer, onClose, onSaved }: {
   const isEdit = !!customer;
   const [form, setForm] = useState({
     name: customer?.name || '',
+    contact_name: customer?.contact_name || '',
     email: customer?.email || '',
     phone: customer?.phone || '',
     address: customer?.address || '',
@@ -1117,10 +1122,19 @@ function CustomerModal({ customer, onClose, onSaved }: {
           {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
             <input value={form.name} required
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Customer name or company"
+              placeholder="Company name (for B2B) or person's name (for individuals)"
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+            <p className="text-xs text-gray-500 mt-1">This is what shows up on quotes, invoices, and reports.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+            <input value={form.contact_name}
+              onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
+              placeholder="Person to talk to (optional)"
               className="w-full px-3 py-2 border rounded-lg text-sm" />
           </div>
 
