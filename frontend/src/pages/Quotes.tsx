@@ -289,31 +289,42 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
               <label className="text-sm font-medium text-gray-700">Line Items</label>
               <button type="button" onClick={addLine} className="text-sm text-primary-600 hover:text-primary-700 font-medium">+ Add Line</button>
             </div>
+
+            {/* Column headers */}
+            <div className="grid grid-cols-12 gap-2 px-3 mb-1 text-xs font-medium text-gray-500">
+              <div className="col-span-5">Item</div>
+              <div className="col-span-2 text-right">Qty</div>
+              <div className="col-span-2 text-right">Unit Cost</div>
+              <div className="col-span-2 text-right">Unit Price</div>
+              <div className="col-span-1"></div>
+            </div>
+
             <div className="space-y-2">
               {lines.map((line, idx) => (
-                <div key={idx} className="flex gap-2 items-start p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-1 grid grid-cols-5 gap-2">
+                <div key={idx} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                  <div className="grid grid-cols-12 gap-2 items-center">
                     <select value={line.item_id} onChange={(e) => updateLine(idx, 'item_id', e.target.value)}
-                      className="px-2 py-1.5 border rounded text-sm bg-white col-span-2">
+                      className="col-span-5 px-2 py-1.5 border rounded text-sm bg-white">
                       <option value="">Custom item</option>
                       {items.map((i) => <option key={i.id} value={i.id}>{i.sku ? `${i.sku} - ` : ''}{i.name}</option>)}
                     </select>
-                    <input placeholder="Qty" type="number" step="0.01" min="0.01" value={line.qty}
+                    <input type="number" step="0.01" min="0.01" value={line.qty}
                       onChange={(e) => updateLine(idx, 'qty', parseFloat(e.target.value) || 0)}
-                      className="px-2 py-1.5 border rounded text-sm" />
-                    <input placeholder="Cost" type="number" step="0.01" min="0" value={line.unit_cost}
+                      className="col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
+                    <input type="number" step="0.01" min="0" value={line.unit_cost}
                       onChange={(e) => updateLine(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
-                      className="px-2 py-1.5 border rounded text-sm" />
-                    <input placeholder="Price" type="number" step="0.01" min="0" value={line.unit_price}
+                      className="col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
+                    <input type="number" step="0.01" min="0" value={line.unit_price}
                       onChange={(e) => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                      className="px-2 py-1.5 border rounded text-sm" />
-                    {!line.item_id && (
-                      <input placeholder="Description" value={line.description}
-                        onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                        className="px-2 py-1.5 border rounded text-sm col-span-5" required={!line.item_id} />
-                    )}
+                      className="col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
+                    <button type="button" onClick={() => removeLine(idx)}
+                      className="col-span-1 text-red-400 hover:text-red-600">&times;</button>
                   </div>
-                  <button type="button" onClick={() => removeLine(idx)} className="text-red-400 hover:text-red-600 mt-1">&times;</button>
+                  {!line.item_id && (
+                    <input placeholder="Description (required for custom items)" value={line.description}
+                      onChange={(e) => updateLine(idx, 'description', e.target.value)}
+                      className="w-full px-2 py-1.5 border rounded text-sm" required={!line.item_id} />
+                  )}
                 </div>
               ))}
             </div>
