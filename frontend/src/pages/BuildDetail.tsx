@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../api/client';
 import { ArrowLeft, Play, ClipboardCheck, CheckCircle } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 
 const statusColors: Record<string, string> = {
   planned: 'bg-gray-100 text-gray-700',
@@ -12,6 +14,8 @@ const statusColors: Record<string, string> = {
 
 export default function BuildDetail() {
   const { id } = useParams<{ id: string }>();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [build, setBuild] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
@@ -32,18 +36,24 @@ export default function BuildDetail() {
     try {
       await api.post(`/builds/${id}/allocate`);
       await fetchBuild();
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed'); }
+      toast.success('Materials allocated. Build is now active.');
+    } catch (err: any) { toast.error(err.response?.data?.error || 'Failed to allocate materials'); }
     finally { setActionLoading(''); }
   };
 
   const handleCloseOut = async () => {
-    if (!confirm('Close out this build? Surplus materials will be captured.')) return;
+    const ok = await confirm({
+      title: 'Close out build?',
+      message: 'Material leftovers (allocated minus used) will be captured into the surplus pool. The build status will flip to Complete and can no longer be edited.',
+      confirmText: 'Close Out',
+    });
+    if (!ok) return;
     setActionLoading('closeout');
     try {
       const res = await api.post(`/builds/${id}/close-out`, {});
-      alert(`Build closed. Actual: $${res.data.actual_total}, Surplus items: ${res.data.surplus_items}`);
       await fetchBuild();
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed'); }
+      toast.success(`Build closed. Actual: $${res.data.actual_total}. ${res.data.surplus_items} surplus item${res.data.surplus_items === 1 ? '' : 's'} captured.`);
+    } catch (err: any) { toast.error(err.response?.data?.error || 'Failed to close out'); }
     finally { setActionLoading(''); }
   };
 
@@ -178,22 +188,26 @@ export default function BuildDetail() {
 function RecordUsageModal({ buildId, materials, onClose, onRecorded }: {
   buildId: string; materials: any[]; onClose: () => void; onRecorded: () => void;
 }) {
+  const toast = useToast();
   const [lines, setLines] = useState(
     materials.map((m: any) => ({ build_material_id: m.id, qty_used: 0, name: m.item_name, allocated: parseFloat(m.qty_allocated), used: parseFloat(m.qty_used) }))
   );
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const toSubmit = lines.filter((l) => l.qty_used > 0);
-    if (toSubmit.length === 0) { alert('Enter at least one usage amount'); return; }
+    if (toSubmit.length === 0) { setError('Enter a usage amount on at least one line.'); return; }
     setSaving(true);
+    setError('');
     try {
       await api.post(`/builds/${buildId}/record-usage`, {
         lines: toSubmit.map((l) => ({ build_material_id: l.build_material_id, qty_used: l.qty_used })),
       });
+      toast.success(`Usage recorded for ${toSubmit.length} material${toSubmit.length === 1 ? '' : 's'}.`);
       onRecorded();
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed'); }
+    } catch (err: any) { setError(err.response?.data?.error || 'Failed to record usage'); }
     finally { setSaving(false); }
   };
 
@@ -205,6 +219,7 @@ function RecordUsageModal({ buildId, materials, onClose, onRecorded }: {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
           {lines.map((line, idx) => (
             <div key={line.build_material_id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
               <div className="flex-1">

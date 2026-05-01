@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
 import { Copy, Plus, Edit2, Trash2, X } from 'lucide-react';
+import { useToast } from './ui/Toast';
+import { useConfirm } from './ui/ConfirmDialog';
 
 interface Line {
   item_id: string;
@@ -23,6 +25,8 @@ interface Template {
  * and the Quotes page "Templates" button.
  */
 export default function TemplatesManager() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,11 +46,18 @@ export default function TemplatesManager() {
   useEffect(() => { fetchAll(); }, []);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Deactivate quote template "${name}"? It will be hidden from quote creation but historical quotes still reference it.`)) return;
+    const ok = await confirm({
+      title: `Deactivate "${name}"?`,
+      message: 'This template will be hidden from quote creation. Historical quotes that used this template still reference it for cost tracking.',
+      confirmText: 'Deactivate',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/templates/${id}`);
+      toast.success(`Template "${name}" deactivated.`);
       fetchAll();
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed to delete'); }
+    } catch (err: any) { toast.error(err.response?.data?.error || 'Failed to delete'); }
   };
 
   return (

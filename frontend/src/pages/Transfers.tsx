@@ -5,6 +5,7 @@ import Pagination from '../components/ui/Pagination';
 import FilterBar from '../components/ui/FilterBar';
 import SortHeader, { SortDir, toggleSort } from '../components/ui/SortHeader';
 import PageHelp from '../components/ui/PageHelp';
+import { useToast } from '../components/ui/Toast';
 
 const statusColors: Record<string, string> = {
   requested: 'bg-gray-100 text-gray-700',
@@ -15,6 +16,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function Transfers() {
+  const toast = useToast();
   const [transfers, setTransfers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,8 +58,9 @@ export default function Transfers() {
     setActionLoading(id + action);
     try {
       await api.post(`/transfers/${id}/${action}`);
+      toast.success(`Transfer ${action === 'approve' ? 'approved' : action === 'ship' ? 'shipped' : action === 'receive' ? 'received' : action + 'd'}.`);
       fetchTransfers();
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed'); }
+    } catch (err: any) { toast.error(err.response?.data?.error || `Failed to ${action} transfer`); }
     finally { setActionLoading(''); }
   };
 

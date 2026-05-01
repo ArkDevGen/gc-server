@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../api/client';
 import { ArrowLeft, Play, Send, CheckCircle } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 
 export default function CountDetail() {
   const { id } = useParams<{ id: string }>();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [count, setCount] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
@@ -17,38 +21,44 @@ export default function CountDetail() {
 
   const handleStart = async () => {
     setActionLoading('start');
-    try { await api.post(`/counts/${id}/start`); fetchCount(); }
-    catch (err: any) { alert(err.response?.data?.error || 'Failed'); }
+    try { await api.post(`/counts/${id}/start`); toast.success('Count started.'); fetchCount(); }
+    catch (err: any) { toast.error(err.response?.data?.error || 'Failed to start count'); }
     finally { setActionLoading(''); }
   };
 
   const handleSaveCounts = async () => {
     const lines = Object.entries(editedLines).map(([line_id, counted_qty]) => ({ line_id, counted_qty }));
-    if (lines.length === 0) { alert('Enter at least one count'); return; }
+    if (lines.length === 0) { toast.warning('Enter a count on at least one line before saving.'); return; }
     setActionLoading('save');
     try {
       await api.post(`/counts/${id}/record`, { lines });
+      toast.success(`Saved ${lines.length} count${lines.length === 1 ? '' : 's'}.`);
       setEditedLines({});
       fetchCount();
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed'); }
+    } catch (err: any) { toast.error(err.response?.data?.error || 'Failed to save counts'); }
     finally { setActionLoading(''); }
   };
 
   const handleComplete = async () => {
     setActionLoading('complete');
-    try { await api.post(`/counts/${id}/complete`); fetchCount(); }
-    catch (err: any) { alert(err.response?.data?.error || 'Failed'); }
+    try { await api.post(`/counts/${id}/complete`); toast.success('Count submitted for review.'); fetchCount(); }
+    catch (err: any) { toast.error(err.response?.data?.error || 'Failed to complete count'); }
     finally { setActionLoading(''); }
   };
 
   const handleApply = async () => {
-    if (!confirm('Apply all variances to inventory? This will adjust stock levels.')) return;
+    const ok = await confirm({
+      title: 'Apply all variances to inventory?',
+      message: 'This adjusts stock levels at the counted location to match what you recorded. Each variance creates an audit row with reason "physical_count".',
+      confirmText: 'Apply',
+    });
+    if (!ok) return;
     setActionLoading('apply');
     try {
       const res = await api.post(`/counts/${id}/apply`);
-      alert(`Applied! ${res.data.adjustments_made} adjustments made.`);
+      toast.success(`Applied: ${res.data.adjustments_made} adjustment${res.data.adjustments_made === 1 ? '' : 's'} made.`);
       fetchCount();
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed'); }
+    } catch (err: any) { toast.error(err.response?.data?.error || 'Failed to apply'); }
     finally { setActionLoading(''); }
   };
 

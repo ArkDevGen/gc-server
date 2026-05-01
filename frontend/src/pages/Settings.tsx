@@ -6,6 +6,8 @@ import {
   Truck, Plus, Search, Edit2, X, Trash2, UserCheck,
 } from 'lucide-react';
 import TemplatesManager from '../components/TemplatesManager';
+import { useToast } from '../components/ui/Toast';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 
 type TabKey = 'users' | 'locations' | 'categories' | 'vendors' | 'customers' | 'templates' | 'import';
 
@@ -260,12 +262,22 @@ function LocationsPanel({ canEdit }: { canEdit: boolean }) {
   };
   useEffect(() => { fetch(); }, []);
 
+  const toast = useToast();
+  const confirm = useConfirm();
+
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Deactivate "${name}"? It will be hidden from new transactions but historical records are preserved.`)) return;
+    const ok = await confirm({
+      title: `Deactivate "${name}"?`,
+      message: 'It will be hidden from new transactions, but historical records (POs, transfers, counts) that reference it are preserved.',
+      confirmText: 'Deactivate',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/items/locations/list/${id}`);
+      toast.success(`Location "${name}" deactivated.`);
       fetch();
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed to deactivate'); }
+    } catch (err: any) { toast.error(err.response?.data?.error || 'Failed to deactivate'); }
   };
 
   return (
@@ -425,12 +437,22 @@ function CategoriesPanel({ canEdit }: { canEdit: boolean }) {
   };
   useEffect(() => { fetch(); }, []);
 
+  const toast = useToast();
+  const confirm = useConfirm();
+
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete category "${name}"? This cannot be undone. Categories in use by inventory items cannot be deleted.`)) return;
+    const ok = await confirm({
+      title: `Delete category "${name}"?`,
+      message: 'This cannot be undone. Categories that are still used by any inventory items cannot be deleted — the system will tell you to reassign those items first.',
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/items/categories/list/${id}`);
+      toast.success(`Category "${name}" deleted.`);
       fetch();
-    } catch (err: any) { alert(err.response?.data?.error || 'Failed to delete'); }
+    } catch (err: any) { toast.error(err.response?.data?.error || 'Failed to delete'); }
   };
 
   return (

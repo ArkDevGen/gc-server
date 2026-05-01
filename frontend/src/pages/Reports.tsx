@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
 import { Search, AlertTriangle, DollarSign, Recycle, Hammer, ArrowDownToLine, ArrowUpFromLine, TrendingUp, MapPin } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import { useToast } from '../components/ui/Toast';
 
 type ReportTab = 'accounts-receivable' | 'accounts-payable' | 'reorder-suggestions' | 'inventory-value' | 'inventory-by-location' | 'low-stock' | 'build-variance' | 'surplus-aging';
 
@@ -586,6 +587,7 @@ function AccountsPayableReport() {
 }
 
 function ReorderSuggestionsReport() {
+  const toast = useToast();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
@@ -629,11 +631,11 @@ function ReorderSuggestionsReport() {
     setApplying(true);
     try {
       const res = await api.post('/reports/reorder-suggestions/apply', { items });
-      alert(`Updated ${res.data.updated} items with suggested reorder points.`);
+      toast.success(`Updated ${res.data.updated} item${res.data.updated === 1 ? '' : 's'} with suggested reorder points.`);
       setSelected(new Set());
       fetchData();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to apply');
+      toast.error(err.response?.data?.error || 'Failed to apply suggestions');
     } finally {
       setApplying(false);
     }

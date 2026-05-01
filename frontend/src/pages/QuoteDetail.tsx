@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { ArrowLeft, Pencil, Save, X, Hammer, Copy, Trash2 } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -15,6 +17,8 @@ const statusColors: Record<string, string> = {
 export default function QuoteDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [quote, setQuote] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -91,25 +95,36 @@ export default function QuoteDetail() {
     try {
       const res = await api.post(`/quotes/${id}/convert-to-build`, { name, location_id: locationId });
       setShowConvert(false);
+      toast.success('Quote converted to build.');
       navigate(`/builds/${res.data.id}`);
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to convert quote');
+      toast.error(err.response?.data?.error || 'Failed to convert quote');
     } finally {
       setActionLoading('');
     }
   };
 
   const handleDelete = async () => {
-    const confirmed = window.confirm(
-      `Delete quote ${quote.quote_number} for ${quote.customer_name}?\n\nThis cannot be undone. All line items on this quote will be removed.\n\nIf you've already converted this quote to a build, you'll need to delete the build first or change the quote's status to Rejected instead.`
-    );
-    if (!confirmed) return;
+    const ok = await confirm({
+      title: `Delete quote ${quote.quote_number}?`,
+      message: (
+        <>
+          This will remove the quote and all its line items for <strong>{quote.customer_name}</strong>. This cannot be undone.
+          <br /><br />
+          If this quote was already converted to a build, the system will block the delete and ask you to remove the build first or change the quote's status to Rejected.
+        </>
+      ),
+      confirmText: 'Delete Quote',
+      danger: true,
+    });
+    if (!ok) return;
     setActionLoading('delete');
     try {
       await api.delete(`/quotes/${id}`);
+      toast.success(`Quote ${quote.quote_number} deleted.`);
       navigate('/quotes');
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete quote');
+      toast.error(err.response?.data?.error || 'Failed to delete quote');
     } finally {
       setActionLoading('');
     }
