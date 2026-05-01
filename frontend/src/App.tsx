@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import AppLayout from './layouts/AppLayout';
@@ -20,6 +21,22 @@ import CountDetail from './pages/CountDetail';
 import QuoteDetail from './pages/QuoteDetail';
 import Features from './pages/Features';
 import Settings from './pages/Settings';
+
+// After a successful login, send the user back to wherever a 401 yanked them
+// out of (set by the api client interceptor) — otherwise fall back to the
+// dashboard. Read+clear sessionStorage in a lazy state initializer so
+// StrictMode's double-mount doesn't consume the marker before we use it.
+function PostLoginRedirect() {
+  const [target] = useState(() => {
+    const r = sessionStorage.getItem('gc_return_to');
+    if (r && r !== '/login') {
+      sessionStorage.removeItem('gc_return_to');
+      return r;
+    }
+    return '/';
+  });
+  return <Navigate to={target} replace />;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -48,7 +65,7 @@ export default function App() {
     <Routes>
       <Route
         path="/login"
-        element={token ? <Navigate to="/" replace /> : <Login />}
+        element={token ? <PostLoginRedirect /> : <Login />}
       />
       <Route
         element={
