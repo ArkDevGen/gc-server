@@ -42,10 +42,11 @@ export default function QuoteDetail() {
 
   useEffect(() => { fetchQuote(); }, [id]);
 
-  // Load locations on mount so the Convert to Build modal has them ready
-  // even if the user never opens the Edit form (which also loads them).
+  // Load locations + items on mount so the Convert to Build modal and the
+  // read-only Surplus Savings callout work even before the user opens Edit.
   useEffect(() => {
     api.get('/items/locations/list').then((res) => setLocations(res.data)).catch(() => {});
+    api.get('/items', { params: { limit: 200 } }).then((res) => setItems(res.data.data)).catch(() => {});
   }, []);
 
   const [surplus, setSurplus] = useState<any[]>([]);
