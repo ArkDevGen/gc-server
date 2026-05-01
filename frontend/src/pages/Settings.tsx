@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -11,10 +12,21 @@ import { useConfirm } from '../components/ui/ConfirmDialog';
 
 type TabKey = 'users' | 'locations' | 'categories' | 'vendors' | 'customers' | 'templates' | 'import';
 
+const VALID_TABS: TabKey[] = ['users', 'locations', 'categories', 'vendors', 'customers', 'templates', 'import'];
+
 export default function Settings() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const [tab, setTab] = useState<TabKey>(isAdmin ? 'users' : 'locations');
+  const defaultTab: TabKey = isAdmin ? 'users' : 'locations';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') as TabKey | null;
+  const initialTab: TabKey = (urlTab && VALID_TABS.includes(urlTab)
+    && (urlTab !== 'users' && urlTab !== 'import' || isAdmin)) ? urlTab : defaultTab;
+  const [tab, setTabState] = useState<TabKey>(initialTab);
+  const setTab = (t: TabKey) => {
+    setTabState(t);
+    setSearchParams(t === defaultTab ? {} : { tab: t }, { replace: true });
+  };
   const tabs: { key: TabKey; label: string; icon: any; adminOnly?: boolean }[] = [
     ...(isAdmin ? [{ key: 'users' as TabKey, label: 'Users', icon: Users, adminOnly: true }] : []),
     { key: 'locations', label: 'Locations', icon: MapPin },
