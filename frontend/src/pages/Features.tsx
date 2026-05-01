@@ -1,7 +1,7 @@
 import {
   Scan, Truck, Bell, Activity, DollarSign, TrendingUp,
   CreditCard, Wrench, Camera, Shield, Globe, Users,
-  CheckCircle, ShoppingCart, Lock
+  CheckCircle, ShoppingCart, Lock, Clock
 } from 'lucide-react';
 
 const activeFeatures = [
@@ -98,6 +98,12 @@ const premiumFeatures = [
     label: 'Website Sales Channel',
     desc: 'Sync inventory and orders with your e-commerce site (Shopify, WooCommerce, etc.). Online orders auto-deduct stock and flow into the hub as invoices.',
     category: 'Sales Channels',
+  },
+  {
+    icon: Clock,
+    label: 'Time Tracking',
+    desc: 'Crews clock in/out from their phones, tagged to a build or job site. Hours roll into job costing automatically and feed payroll-ready timesheets.',
+    category: 'Workforce',
   },
 ];
 
