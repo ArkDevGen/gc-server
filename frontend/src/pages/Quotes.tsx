@@ -144,7 +144,15 @@ export default function Quotes() {
                 <td className="px-4 py-3">{q.customer_name}</td>
                 <td className="px-4 py-3 text-gray-500">{new Date(q.quote_date).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-right font-mono">${parseFloat(q.total).toFixed(2)}</td>
-                <td className="px-4 py-3 text-right font-mono">{q.margin_pct ? `${parseFloat(q.margin_pct).toFixed(1)}%` : '--'}</td>
+                <td className="px-4 py-3 text-right font-mono">
+                  {q.margin_pct == null || q.margin_pct === '' ? (
+                    '--'
+                  ) : (() => {
+                    const m = parseFloat(q.margin_pct);
+                    const cls = m > 0 ? 'text-green-600 font-medium' : m < 0 ? 'text-red-600 font-medium' : 'text-gray-500';
+                    return <span className={cls}>{m.toFixed(1)}%</span>;
+                  })()}
+                </td>
                 <td className="px-4 py-3 text-center">
                   <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[q.status] || ''}`}>
                     {q.status}

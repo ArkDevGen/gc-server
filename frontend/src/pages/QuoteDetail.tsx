@@ -198,7 +198,13 @@ export default function QuoteDetail() {
           </div>
           <div>
             <p className="text-sm text-gray-500">Margin</p>
-            <p className="text-2xl font-bold text-primary-600">{quote.margin_pct ? `${parseFloat(quote.margin_pct).toFixed(1)}%` : '--'}</p>
+            {quote.margin_pct == null || quote.margin_pct === '' ? (
+              <p className="text-2xl font-bold text-gray-400">--</p>
+            ) : (() => {
+              const m = parseFloat(quote.margin_pct);
+              const cls = m > 0 ? 'text-green-600' : m < 0 ? 'text-red-600' : 'text-gray-500';
+              return <p className={`text-2xl font-bold ${cls}`}>{m.toFixed(1)}%</p>;
+            })()}
           </div>
           <div>
             <p className="text-sm text-gray-500">Line Items</p>
