@@ -33,13 +33,13 @@ export default function Dashboard() {
 
   const cards = [
     { label: 'Total Items', value: stats?.total_items ?? '--', icon: Package, color: 'bg-blue-500', link: '/inventory' },
-    { label: 'Low Stock Alerts', value: stats?.low_stock_items ?? '--', icon: AlertTriangle, color: 'bg-amber-500', link: '/reports' },
+    { label: 'Low Stock Alerts', value: stats?.low_stock_items ?? '--', icon: AlertTriangle, color: 'bg-amber-500', link: '/reports?tab=low-stock' },
     { label: 'Active Builds', value: stats?.active_builds ?? '--', icon: Hammer, color: 'bg-green-500', link: '/builds' },
     { label: 'Open POs', value: stats?.open_pos ?? '--', icon: ShoppingCart, color: 'bg-purple-500', link: '/purchase-orders' },
     { label: 'Unpaid Invoices', value: stats?.unpaid_invoices ?? '--', icon: Receipt, color: 'bg-red-500', link: '/invoices' },
-    { label: 'Accounts Receivable', value: stats ? fmt(stats.accounts_receivable) : '--', icon: DollarSign, color: 'bg-emerald-500', link: '/reports' },
-    { label: 'Accounts Payable', value: stats ? fmt(stats.accounts_payable) : '--', icon: DollarSign, color: 'bg-rose-500', link: '/reports' },
-    { label: 'Inventory Value', value: stats ? fmt(stats.inventory_value) : '--', icon: DollarSign, color: 'bg-cyan-500', link: '/reports' },
+    { label: 'Accounts Receivable', value: stats ? fmt(stats.accounts_receivable) : '--', icon: DollarSign, color: 'bg-emerald-500', link: '/reports?tab=accounts-receivable' },
+    { label: 'Accounts Payable', value: stats ? fmt(stats.accounts_payable) : '--', icon: DollarSign, color: 'bg-rose-500', link: '/reports?tab=accounts-payable' },
+    { label: 'Inventory Value', value: stats ? fmt(stats.inventory_value) : '--', icon: DollarSign, color: 'bg-cyan-500', link: '/reports?tab=inventory-value' },
     { label: 'Surplus Value', value: stats ? fmt(stats.surplus_value) : '--', icon: Recycle, color: 'bg-amber-600', link: '/surplus' },
   ];
 

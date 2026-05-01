@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import { Search, AlertTriangle, DollarSign, Recycle, Hammer, ArrowDownToLine, ArrowUpFromLine, TrendingUp, MapPin } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
@@ -6,8 +7,13 @@ import { useToast } from '../components/ui/Toast';
 
 type ReportTab = 'accounts-receivable' | 'accounts-payable' | 'reorder-suggestions' | 'inventory-value' | 'inventory-by-location' | 'low-stock' | 'build-variance' | 'surplus-aging';
 
+const VALID_TABS: ReportTab[] = ['accounts-receivable', 'accounts-payable', 'reorder-suggestions', 'inventory-value', 'inventory-by-location', 'low-stock', 'build-variance', 'surplus-aging'];
+
 export default function Reports() {
-  const [tab, setTab] = useState<ReportTab>('accounts-receivable');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (VALID_TABS.includes(searchParams.get('tab') as ReportTab) ? searchParams.get('tab') : 'accounts-receivable') as ReportTab;
+  const [tab, setTabState] = useState<ReportTab>(initialTab);
+  const setTab = (t: ReportTab) => { setTabState(t); setSearchParams(t === 'accounts-receivable' ? {} : { tab: t }, { replace: true }); };
 
   const tabs: { key: ReportTab; label: string; icon: any }[] = [
     { key: 'accounts-receivable', label: 'Accounts Receivable', icon: ArrowDownToLine },
