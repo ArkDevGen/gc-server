@@ -19,7 +19,9 @@ export const env = {
   SQUARE_APP_ID: process.env.SQUARE_APP_ID || '',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
   // Support / contact form
-  RESEND_API_KEY: process.env.RESEND_API_KEY || '',
+ AZURE_TENANT_ID: process.env.AZURE_TENANT_ID || '',
+AZURE_CLIENT_ID: process.env.AZURE_CLIENT_ID || '',
+AZURE_CLIENT_SECRET: process.env.AZURE_CLIENT_SECRET || '',
   // Domain-verified address used as the From on outbound support emails.
   // Defaults to a hub@ alias on the staff domain.
   SUPPORT_FROM_EMAIL: process.env.SUPPORT_FROM_EMAIL || 'support@arkhub.us',
