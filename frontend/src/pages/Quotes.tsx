@@ -252,14 +252,20 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
     setLines(updated);
   };
 
-  // Toggle "use surplus" for a line. When enabled, pull cost from the
-  // first available surplus pool entry for this item; when disabled, restore
-  // the item's normal cost from the catalog.
+  // Toggle "use surplus" for a line.
+  //
+  // Turning ON:
+  //   - If the line's qty fits in the surplus pool, just convert the line.
+  //   - If the qty is bigger than what's available, split: this line becomes
+  //     a surplus line at the available quantity, and a NEW fresh line for
+  //     the remainder is inserted immediately after.
+  // Turning OFF: just restore the item's normal cost from the catalog.
   const toggleSurplus = (idx: number) => {
     const updated = [...lines];
     const line = updated[idx];
     if (!line.item_id) return;
     const pool = surplusForItem(line.item_id);
+
     if (line.is_surplus) {
       // Turning OFF
       const item = items.find((i) => i.id === line.item_id);
@@ -269,19 +275,47 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
         surplus_location_id: undefined,
         unit_cost: item ? parseFloat(item.cost_price) : line.unit_cost,
       };
-    } else {
-      // Turning ON — use the first (oldest) surplus pool entry
-      if (pool.length === 0) return;
-      const sp = pool[0];
+      setLines(updated);
+      return;
+    }
+
+    // Turning ON — use the first (oldest) surplus pool entry
+    if (pool.length === 0) return;
+    const sp = pool[0];
+    const available = parseFloat(sp.qty_available);
+    const requestedQty = parseFloat(line.qty) || 1;
+
+    if (requestedQty <= available) {
+      // Fits — just convert
       updated[idx] = {
         ...line,
         is_surplus: true,
         surplus_location_id: sp.location_id,
         unit_cost: parseFloat(sp.original_cost),
-        // Cap qty at what's available in this pool entry
-        qty: Math.min(line.qty || 1, parseFloat(sp.qty_available)),
       };
+      setLines(updated);
+      return;
     }
+
+    // Need more than what's in surplus — split into two lines
+    const remaining = requestedQty - available;
+    const item = items.find((i) => i.id === line.item_id);
+    updated[idx] = {
+      ...line,
+      is_surplus: true,
+      surplus_location_id: sp.location_id,
+      unit_cost: parseFloat(sp.original_cost),
+      qty: available,
+    };
+    updated.splice(idx + 1, 0, {
+      item_id: line.item_id,
+      description: line.description,
+      qty: remaining,
+      unit_cost: item ? parseFloat(item.cost_price) : line.unit_cost,
+      unit_price: line.unit_price,
+      is_surplus: false,
+      surplus_location_id: undefined,
+    });
     setLines(updated);
   };
 
@@ -404,30 +438,41 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
                         onChange={(e) => updateLine(idx, 'description', e.target.value)}
                         className="w-full px-2 py-1.5 border rounded text-sm" required={!line.item_id} />
                     )}
-                    {line.item_id && hasSurplus && (
-                      <div className="flex items-center justify-between gap-3 text-xs">
-                        <label className="flex items-center gap-2 text-amber-800 cursor-pointer">
-                          <input type="checkbox" checked={line.is_surplus}
-                            onChange={() => toggleSurplus(idx)}
-                            className="rounded" />
-                          <span className="font-medium">
-                            Use surplus
-                            {!line.is_surplus && (
-                              <> &mdash; {surplusQty} available
-                                {surplusPool[0] && <> @ ${parseFloat(surplusPool[0].original_cost).toFixed(2)}</>}
-                                {surplusPool[0]?.build_number && <> from build {surplusPool[0].build_number}</>}
-                              </>
-                            )}
-                            {line.is_surplus && activePoolEntry && (
-                              <> &mdash; consuming from {activePoolEntry.location_name}, {parseFloat(activePoolEntry.qty_available).toLocaleString()} available</>
-                            )}
-                          </span>
-                        </label>
-                        {line.is_surplus && (
-                          <span className="text-amber-700 font-medium">SURPLUS</span>
-                        )}
-                      </div>
-                    )}
+                    {line.item_id && hasSurplus && (() => {
+                      const requestedQty = parseFloat(line.qty) || 0;
+                      const firstPool = surplusPool[0];
+                      const willSplit = !line.is_surplus && firstPool && requestedQty > parseFloat(firstPool.qty_available);
+                      const splitSurplus = firstPool ? parseFloat(firstPool.qty_available) : 0;
+                      const splitFresh = Math.max(0, requestedQty - splitSurplus);
+                      return (
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                          <label className="flex items-center gap-2 text-amber-800 cursor-pointer">
+                            <input type="checkbox" checked={line.is_surplus}
+                              onChange={() => toggleSurplus(idx)}
+                              className="rounded" />
+                            <span className="font-medium">
+                              Use surplus
+                              {!line.is_surplus && firstPool && !willSplit && (
+                                <> &mdash; {surplusQty} available @ ${parseFloat(firstPool.original_cost).toFixed(2)}
+                                  {firstPool.build_number && <> from build {firstPool.build_number}</>}
+                                </>
+                              )}
+                              {!line.is_surplus && willSplit && (
+                                <> &mdash; will split: <strong>{splitSurplus} surplus</strong> @ ${parseFloat(firstPool.original_cost).toFixed(2)} + <strong>{splitFresh} fresh</strong> on a new line
+                                </>
+                              )}
+                              {line.is_surplus && activePoolEntry && (
+                                <> &mdash; consuming from {activePoolEntry.location_name}, {parseFloat(activePoolEntry.qty_available).toLocaleString()} available
+                                </>
+                              )}
+                            </span>
+                          </label>
+                          {line.is_surplus && (
+                            <span className="text-amber-700 font-medium">SURPLUS</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
