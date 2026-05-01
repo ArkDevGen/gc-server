@@ -325,25 +325,45 @@ export default function QuoteDetail() {
                 </tr>
               ))
             ) : (
-              quote.lines?.map((line: any, idx: number) => (
-                <tr key={line.id} className="border-b last:border-0">
-                  <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                  <td className="px-4 py-3">
-                    <span className="font-medium">{line.item_name || line.description}</span>
-                    {line.item_sku && <span className="text-xs text-gray-400 ml-2">{line.item_sku}</span>}
-                    {line.is_surplus && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Surplus</span>}
-                    {line.surplus_available?.length > 0 && !line.is_surplus && (
-                      <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
-                        Surplus available: {line.surplus_available.reduce((s: number, sp: any) => s + parseFloat(sp.qty_available), 0)}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">{parseFloat(line.qty).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-500">${parseFloat(line.unit_cost).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-mono">${parseFloat(line.unit_price).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-mono font-bold">${parseFloat(line.line_total).toFixed(2)}</td>
-                </tr>
-              ))
+              quote.lines?.map((line: any, idx: number) => {
+                // "Surplus available" hint should only show when there's
+                // surplus REMAINING after accounting for what other lines
+                // on THIS quote are already consuming. Otherwise it's
+                // misleading (the available count is already claimed).
+                let remainingAvailable = 0;
+                if (!line.is_surplus && line.surplus_available?.length > 0 && line.item_id) {
+                  const totalAvailable = line.surplus_available.reduce(
+                    (s: number, sp: any) => s + parseFloat(sp.qty_available), 0
+                  );
+                  const claimedByOthers = (quote.lines || []).reduce((s: number, other: any) => {
+                    if (other.id === line.id) return s;
+                    if (other.item_id === line.item_id && other.is_surplus) {
+                      return s + parseFloat(other.qty);
+                    }
+                    return s;
+                  }, 0);
+                  remainingAvailable = Math.max(0, totalAvailable - claimedByOthers);
+                }
+                return (
+                  <tr key={line.id} className="border-b last:border-0">
+                    <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                    <td className="px-4 py-3">
+                      <span className="font-medium">{line.item_name || line.description}</span>
+                      {line.item_sku && <span className="text-xs text-gray-400 ml-2">{line.item_sku}</span>}
+                      {line.is_surplus && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Surplus</span>}
+                      {remainingAvailable > 0 && (
+                        <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                          Surplus available: {remainingAvailable}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">{parseFloat(line.qty).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-mono text-gray-500">${parseFloat(line.unit_cost).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right font-mono">${parseFloat(line.unit_price).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right font-mono font-bold">${parseFloat(line.line_total).toFixed(2)}</td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
           {!editing && (
