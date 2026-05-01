@@ -22,11 +22,11 @@ export const env = {
   RESEND_API_KEY: process.env.RESEND_API_KEY || '',
   // Domain-verified address used as the From on outbound support emails.
   // Defaults to a hub@ alias on the staff domain.
-  SUPPORT_FROM_EMAIL: process.env.SUPPORT_FROM_EMAIL || 'hub@arkfinancialservices.com',
+  SUPPORT_FROM_EMAIL: process.env.SUPPORT_FROM_EMAIL || 'support@arkhub.us',
   // Display name shown in the recipient's From column.
   SUPPORT_FROM_NAME: process.env.SUPPORT_FROM_NAME || 'Ark Support',
   // Inbox that receives the support emails (forwarding rules live here).
-  SUPPORT_TO_EMAIL: process.env.SUPPORT_TO_EMAIL || 'staff@arkfinancialservices.com',
+  SUPPORT_TO_EMAIL: process.env.SUPPORT_TO_EMAIL || 'support@arkhub.us',
   // Subject prefix that lets one inbox route per-client (e.g. "Goodman Classic").
   CLIENT_NAME: process.env.CLIENT_NAME || 'Goodman Classic',
 };
