@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
-import { ArrowLeft, Pencil, Save, X, Hammer, Copy } from 'lucide-react';
+import { ArrowLeft, Pencil, Save, X, Hammer, Copy, Trash2 } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -96,6 +96,22 @@ export default function QuoteDetail() {
     finally { setActionLoading(''); }
   };
 
+  const handleDelete = async () => {
+    const confirmed = window.confirm(
+      `Delete quote ${quote.quote_number} for ${quote.customer_name}?\n\nThis cannot be undone. All line items on this quote will be removed.\n\nIf you've already converted this quote to a build, you'll need to delete the build first or change the quote's status to Rejected instead.`
+    );
+    if (!confirmed) return;
+    setActionLoading('delete');
+    try {
+      await api.delete(`/quotes/${id}`);
+      navigate('/quotes');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete quote');
+    } finally {
+      setActionLoading('');
+    }
+  };
+
   const addLine = () => setEditLines([...editLines, { item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0, is_surplus: false }]);
 
   const updateLine = (idx: number, field: string, value: any) => {
@@ -153,6 +169,11 @@ export default function QuoteDetail() {
                     <Hammer size={14} /> {actionLoading === 'convert' ? 'Converting...' : 'Convert to Build'}
                   </button>
                 )}
+                <button onClick={handleDelete} disabled={!!actionLoading}
+                  className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm font-medium disabled:opacity-50"
+                  title="Delete this quote">
+                  <Trash2 size={14} /> {actionLoading === 'delete' ? 'Deleting...' : 'Delete'}
+                </button>
               </>
             )}
             {editing && (

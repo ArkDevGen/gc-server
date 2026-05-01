@@ -235,6 +235,41 @@ router.patch('/:id', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE), 
   }
 );
 
+// DELETE /api/quotes/:id — hard delete (cascades to quote_lines)
+// Refuses if the quote has been converted to a build or consumed surplus,
+// because deleting it would orphan those references.
+router.delete('/:id', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id;
+
+      const buildCheck = await query('SELECT build_number FROM builds WHERE quote_id = $1', [id]);
+      if (buildCheck.rows.length > 0) {
+        const ref = buildCheck.rows[0].build_number;
+        return res.status(409).json({
+          error: `Cannot delete: this quote was converted to build ${ref}. Delete that build first, or change the quote's status to Rejected instead of deleting it.`,
+        });
+      }
+
+      const surplusCheck = await query(
+        'SELECT COUNT(*) as cnt FROM surplus_pool WHERE consumed_by_quote = $1',
+        [id]
+      );
+      if (parseInt(surplusCheck.rows[0].cnt, 10) > 0) {
+        return res.status(409).json({
+          error: 'Cannot delete: this quote consumed surplus inventory. Change its status to Rejected instead of deleting it.',
+        });
+      }
+
+      const result = await query('DELETE FROM quotes WHERE id = $1 RETURNING id', [id]);
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Quote not found' });
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // POST /api/quotes/:id/convert-to-build
 router.post('/:id/convert-to-build', requireAuth, requireRole(UserRole.ADMIN, UserRole.OFFICE),
   async (req: AuthRequest, res: Response, next: NextFunction) => {
