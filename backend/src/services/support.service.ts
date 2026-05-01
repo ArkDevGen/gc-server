@@ -1,55 +1,48 @@
-import { Resend } from 'resend';
+import { ClientSecretCredential } from '@azure/identity';
+import { Client } from '@microsoft/microsoft-graph-client';
+import { TokenCredentialAuthenticationProvider } from '@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials';
 import { env } from '../config/env';
 
-let client: Resend | null = null;
+let graphClient: Client | null = null;
 
-function getClient(): Resend | null {
-  if (!env.RESEND_API_KEY) return null;
-  if (!client) client = new Resend(env.RESEND_API_KEY);
-  return client;
+function getClient(): Client | null {
+  if (!env.AZURE_TENANT_ID || !env.AZURE_CLIENT_ID || !env.AZURE_CLIENT_SECRET) return null;
+  if (!graphClient) {
+    const credential = new ClientSecretCredential(
+      env.AZURE_TENANT_ID,
+      env.AZURE_CLIENT_ID,
+      env.AZURE_CLIENT_SECRET
+    );
+    const authProvider = new TokenCredentialAuthenticationProvider(credential, {
+      scopes: ['https://graph.microsoft.com/.default'],
+    });
+    graphClient = Client.initWithMiddleware({ authProvider });
+  }
+  return graphClient;
 }
 
 export interface SupportMessage {
-  // From the form
   subject: string;
   message: string;
-  // Captured automatically from the requesting user
   user_name: string;
   user_email?: string | null;
   user_role: string;
-  // Where in the app they were when they hit the help button
   page_url?: string | null;
 }
 
-/**
- * Send a support request email via Resend. Throws if RESEND_API_KEY is not
- * configured so the route can return a clear 503.
- */
 export async function sendSupportEmail(msg: SupportMessage): Promise<void> {
-  const resend = getClient();
-  if (!resend) {
-    throw new Error('Support email is not configured (missing RESEND_API_KEY).');
+  const client = getClient();
+  if (!client) {
+    throw new Error('Support email is not configured (missing Azure credentials).');
   }
 
   const subject = `[${env.CLIENT_NAME}] ${msg.subject}`.slice(0, 250);
 
-  // Plain-text fallback
-  const text = [
-    `New support request from ${env.CLIENT_NAME} Inventory Hub`,
-    ``,
-    `From: ${msg.user_name} (${msg.user_role})`,
-    msg.user_email ? `Email: ${msg.user_email}` : 'Email: not on file',
-    msg.page_url ? `Page: ${msg.page_url}` : '',
-    ``,
-    `Message:`,
-    msg.message,
-  ].filter(Boolean).join('\n');
-
-  // HTML version with simple, readable layout
   const escapeHtml = (s: string) =>
     s.replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!
     );
+
   const html = `
     <div style="font-family: -apple-system, Segoe UI, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background: #c8202c; color: white; padding: 16px 20px; border-radius: 8px 8px 0 0;">
@@ -69,17 +62,16 @@ export async function sendSupportEmail(msg: SupportMessage): Promise<void> {
     </div>
   `;
 
-  await resend.emails.send({
-    from: `${env.SUPPORT_FROM_NAME} <${env.SUPPORT_FROM_EMAIL}>`,
-    to: env.SUPPORT_TO_EMAIL,
-    subject,
-    text,
-    html,
-    // Critical: replies in Gmail go back to the user, not bounce to staff@
-    replyTo: msg.user_email || undefined,
+  await client.api(`/users/${env.SUPPORT_FROM_EMAIL}/sendMail`).post({
+    message: {
+      subject,
+      body: { contentType: 'HTML', content: html },
+      toRecipients: [{ emailAddress: { address: env.SUPPORT_TO_EMAIL } }],
+      replyTo: msg.user_email ? [{ emailAddress: { address: msg.user_email } }] : undefined,
+    },
   });
 }
 
 export function isSupportConfigured(): boolean {
-  return Boolean(env.RESEND_API_KEY);
+  return Boolean(env.AZURE_TENANT_ID && env.AZURE_CLIENT_ID && env.AZURE_CLIENT_SECRET);
 }
