@@ -172,12 +172,23 @@ export default function Quotes() {
   );
 }
 
+interface SurplusEntry {
+  id: string;
+  item_id: string;
+  location_id: string;
+  location_name: string;
+  qty_available: string;
+  original_cost: string;
+  build_number: string | null;
+}
+
 function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [customers, setCustomers] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [surplus, setSurplus] = useState<SurplusEntry[]>([]);
   const [form, setForm] = useState({ customer_id: '', valid_until: '', notes: '' });
-  const [lines, setLines] = useState<any[]>([{ item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0, is_surplus: false }]);
+  const [lines, setLines] = useState<any[]>([{ item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0, is_surplus: false, surplus_location_id: undefined }]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [customerHistory, setCustomerHistory] = useState<any[]>([]);
@@ -187,8 +198,22 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
       api.get('/customers'),
       api.get('/items', { params: { limit: 100 } }),
       api.get('/templates'),
-    ]).then(([c, i, t]) => { setCustomers(c.data); setItems(i.data.data); setTemplates(t.data); });
+      api.get('/surplus', { params: { limit: 500 } }),
+    ]).then(([c, i, t, s]) => {
+      setCustomers(c.data);
+      setItems(i.data.data);
+      setTemplates(t.data);
+      setSurplus(s.data.data);
+    });
   }, []);
+
+  // Get surplus entries for a specific item, sorted by oldest capture first (FIFO)
+  const surplusForItem = (itemId: string): SurplusEntry[] =>
+    surplus.filter((s) => s.item_id === itemId);
+
+  // Total qty across all surplus pool entries for an item
+  const surplusTotalQty = (itemId: string): number =>
+    surplusForItem(itemId).reduce((sum, s) => sum + parseFloat(s.qty_available), 0);
 
   // Load customer quote history when customer changes
   useEffect(() => {
@@ -207,7 +232,7 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
     } catch (err) { console.error(err); }
   };
 
-  const addLine = () => setLines([...lines, { item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0, is_surplus: false }]);
+  const addLine = () => setLines([...lines, { item_id: '', description: '', qty: 1, unit_cost: 0, unit_price: 0, is_surplus: false, surplus_location_id: undefined }]);
 
   const updateLine = (idx: number, field: string, value: any) => {
     const updated = [...lines];
@@ -220,6 +245,42 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
         updated[idx].unit_cost = parseFloat(item.cost_price);
         updated[idx].unit_price = parseFloat(item.sell_price);
       }
+      // Reset surplus flag when item changes
+      updated[idx].is_surplus = false;
+      updated[idx].surplus_location_id = undefined;
+    }
+    setLines(updated);
+  };
+
+  // Toggle "use surplus" for a line. When enabled, pull cost from the
+  // first available surplus pool entry for this item; when disabled, restore
+  // the item's normal cost from the catalog.
+  const toggleSurplus = (idx: number) => {
+    const updated = [...lines];
+    const line = updated[idx];
+    if (!line.item_id) return;
+    const pool = surplusForItem(line.item_id);
+    if (line.is_surplus) {
+      // Turning OFF
+      const item = items.find((i) => i.id === line.item_id);
+      updated[idx] = {
+        ...line,
+        is_surplus: false,
+        surplus_location_id: undefined,
+        unit_cost: item ? parseFloat(item.cost_price) : line.unit_cost,
+      };
+    } else {
+      // Turning ON — use the first (oldest) surplus pool entry
+      if (pool.length === 0) return;
+      const sp = pool[0];
+      updated[idx] = {
+        ...line,
+        is_surplus: true,
+        surplus_location_id: sp.location_id,
+        unit_cost: parseFloat(sp.original_cost),
+        // Cap qty at what's available in this pool entry
+        qty: Math.min(line.qty || 1, parseFloat(sp.qty_available)),
+      };
     }
     setLines(updated);
   };
@@ -308,33 +369,68 @@ function CreateQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreat
             </div>
 
             <div className="space-y-2">
-              {lines.map((line, idx) => (
-                <div key={idx} className="p-3 bg-gray-50 rounded-lg space-y-2">
-                  <div className="grid grid-cols-12 gap-2 items-center">
-                    <select value={line.item_id} onChange={(e) => updateLine(idx, 'item_id', e.target.value)}
-                      className="col-span-5 px-2 py-1.5 border rounded text-sm bg-white">
-                      <option value="">Custom item</option>
-                      {items.map((i) => <option key={i.id} value={i.id}>{i.sku ? `${i.sku} - ` : ''}{i.name}</option>)}
-                    </select>
-                    <input type="number" step="0.01" min="0.01" value={line.qty}
-                      onChange={(e) => updateLine(idx, 'qty', parseFloat(e.target.value) || 0)}
-                      className="col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
-                    <input type="number" step="0.01" min="0" value={line.unit_cost}
-                      onChange={(e) => updateLine(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
-                      className="col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
-                    <input type="number" step="0.01" min="0" value={line.unit_price}
-                      onChange={(e) => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                      className="col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
-                    <button type="button" onClick={() => removeLine(idx)}
-                      className="col-span-1 text-red-400 hover:text-red-600">&times;</button>
+              {lines.map((line, idx) => {
+                const surplusPool = line.item_id ? surplusForItem(line.item_id) : [];
+                const surplusQty = line.item_id ? surplusTotalQty(line.item_id) : 0;
+                const hasSurplus = surplusPool.length > 0;
+                const activePoolEntry = line.is_surplus
+                  ? surplusPool.find((s) => s.location_id === line.surplus_location_id) || surplusPool[0]
+                  : null;
+                return (
+                  <div key={idx} className={`p-3 rounded-lg space-y-2 ${line.is_surplus ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'}`}>
+                    <div className="grid grid-cols-12 gap-2 items-center">
+                      <select value={line.item_id} onChange={(e) => updateLine(idx, 'item_id', e.target.value)}
+                        className="col-span-5 px-2 py-1.5 border rounded text-sm bg-white">
+                        <option value="">Custom item</option>
+                        {items.map((i) => <option key={i.id} value={i.id}>{i.sku ? `${i.sku} - ` : ''}{i.name}</option>)}
+                      </select>
+                      <input type="number" step="0.01" min="0.01" value={line.qty}
+                        max={line.is_surplus && activePoolEntry ? parseFloat(activePoolEntry.qty_available) : undefined}
+                        onChange={(e) => updateLine(idx, 'qty', parseFloat(e.target.value) || 0)}
+                        className="col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
+                      <input type="number" step="0.01" min="0" value={line.unit_cost}
+                        onChange={(e) => updateLine(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
+                        disabled={line.is_surplus}
+                        title={line.is_surplus ? 'Cost is fixed by the surplus pool entry' : ''}
+                        className={`col-span-2 px-2 py-1.5 border rounded text-sm text-right ${line.is_surplus ? 'bg-gray-100 cursor-not-allowed' : ''}`} />
+                      <input type="number" step="0.01" min="0" value={line.unit_price}
+                        onChange={(e) => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
+                        className="col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
+                      <button type="button" onClick={() => removeLine(idx)}
+                        className="col-span-1 text-red-400 hover:text-red-600">&times;</button>
+                    </div>
+                    {!line.item_id && (
+                      <input placeholder="Description (required for custom items)" value={line.description}
+                        onChange={(e) => updateLine(idx, 'description', e.target.value)}
+                        className="w-full px-2 py-1.5 border rounded text-sm" required={!line.item_id} />
+                    )}
+                    {line.item_id && hasSurplus && (
+                      <div className="flex items-center justify-between gap-3 text-xs">
+                        <label className="flex items-center gap-2 text-amber-800 cursor-pointer">
+                          <input type="checkbox" checked={line.is_surplus}
+                            onChange={() => toggleSurplus(idx)}
+                            className="rounded" />
+                          <span className="font-medium">
+                            Use surplus
+                            {!line.is_surplus && (
+                              <> &mdash; {surplusQty} available
+                                {surplusPool[0] && <> @ ${parseFloat(surplusPool[0].original_cost).toFixed(2)}</>}
+                                {surplusPool[0]?.build_number && <> from build {surplusPool[0].build_number}</>}
+                              </>
+                            )}
+                            {line.is_surplus && activePoolEntry && (
+                              <> &mdash; consuming from {activePoolEntry.location_name}, {parseFloat(activePoolEntry.qty_available).toLocaleString()} available</>
+                            )}
+                          </span>
+                        </label>
+                        {line.is_surplus && (
+                          <span className="text-amber-700 font-medium">SURPLUS</span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {!line.item_id && (
-                    <input placeholder="Description (required for custom items)" value={line.description}
-                      onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                      className="w-full px-2 py-1.5 border rounded text-sm" required={!line.item_id} />
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="text-right mt-2 text-lg font-bold">Total: ${total.toFixed(2)}</div>
           </div>
