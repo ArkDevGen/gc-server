@@ -18,10 +18,13 @@ import transfersRoutes from './routes/transfers.routes';
 import reportsRoutes from './routes/reports.routes';
 import countsRoutes from './routes/counts.routes';
 import supportRoutes from './routes/support.routes';
+import { verifyOriginSecret } from './middleware/cloudflareSecret';
 
 const app = express();
 
 // Middleware
+// Middleware
+app.use(verifyOriginSecret);
 app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
 app.use(express.json());
 
