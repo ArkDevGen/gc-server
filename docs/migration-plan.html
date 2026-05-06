@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GC Inventory Hub — Migration &amp; Cost Plan</title>
+<style>
+  /* ---------- Goodman Classic brand palette ---------- */
+  :root {
+    --gc-red:       #c8202c;
+    --gc-red-dark:  #9b1620;
+    --gc-red-soft:  #fee2e2;
+    --gc-charcoal:  #1f2937;
+    --gc-slate:     #4b5563;
+    --gc-mute:      #6b7280;
+    --gc-line:      #e5e7eb;
+    --gc-bg-warm:   #fafaf9;
+    --gc-bg-soft:   #f9fafb;
+    --gc-green:     #15803d;
+    --gc-green-soft:#dcfce7;
+    --gc-gold:      #b45309;
+    --gc-gold-soft: #fef3c7;
+  }
+
+  @page { size: letter; margin: 0.45in; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Helvetica Neue", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--gc-charcoal);
+    line-height: 1.4;
+    font-size: 10.5pt;
+    background: white;
+  }
+  .page {
+    padding: 0;
+    max-width: 7.6in;
+    margin: 0 auto;
+  }
+  .page + .page { page-break-before: always; }
+
+  /* ---------- Branded header ---------- */
+  header.brand {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0 12px 0;
+    border-bottom: 4px solid var(--gc-red);
+    margin-bottom: 18px;
+    position: relative;
+  }
+  header.brand::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -8px;
+    width: 80px;
+    height: 4px;
+    background: var(--gc-charcoal);
+  }
+  .brand-left { display: flex; align-items: center; gap: 14px; }
+  .brand-logo {
+    height: 56px;
+    width: auto;
+    border: 1px solid var(--gc-line);
+    background: white;
+  }
+  .brand-text .brand-name {
+    font-size: 9pt;
+    letter-spacing: 0.22em;
+    color: var(--gc-mute);
+    font-weight: 700;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .brand-text .brand-product {
+    font-size: 22pt;
+    font-weight: 800;
+    color: var(--gc-charcoal);
+    margin: 2px 0 0 0;
+    letter-spacing: -0.01em;
+  }
+  .brand-tag {
+    text-align: right;
+    font-size: 8.5pt;
+    color: var(--gc-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    line-height: 1.6;
+  }
+  .brand-tag strong { color: var(--gc-red); font-weight: 700; }
+
+  /* ---------- Section headings ---------- */
+  h1.section-title {
+    font-size: 15pt;
+    margin: 0 0 4px 0;
+    color: var(--gc-charcoal);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h1.section-title::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 18px;
+    background: var(--gc-red);
+    border-radius: 2px;
+  }
+  p.section-sub {
+    font-size: 9.5pt;
+    color: var(--gc-mute);
+    margin: 0 0 16px 16px;
+  }
+
+  /* ---------- Migration diagram ---------- */
+  .swap {
+    display: grid;
+    grid-template-columns: 1fr 50px 1fr;
+    gap: 12px;
+    align-items: stretch;
+    margin: 12px 0 18px 0;
+  }
+  .stack {
+    border: 1px solid var(--gc-line);
+    border-radius: 6px;
+    padding: 14px;
+    background: var(--gc-bg-warm);
+  }
+  .stack-from {
+    border-left: 4px solid var(--gc-mute);
+    background: var(--gc-bg-soft);
+  }
+  .stack-to {
+    border-left: 4px solid var(--gc-red);
+    background: white;
+  }
+  .stack-label {
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 800;
+    color: var(--gc-mute);
+    margin-bottom: 8px;
+  }
+  .stack-from .stack-label { color: var(--gc-mute); }
+  .stack-to .stack-label { color: var(--gc-red); }
+  .tool {
+    padding: 8px 10px;
+    background: white;
+    border: 1px solid var(--gc-line);
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+  .stack-from .tool { opacity: 0.85; }
+  .tool:last-child { margin-bottom: 0; }
+  .tool-name { font-weight: 700; font-size: 10pt; }
+  .tool-role { font-size: 8.5pt; color: var(--gc-slate); margin-top: 1px; }
+  .tool-price {
+    float: right;
+    font-family: "Helvetica Neue", monospace;
+    font-size: 9pt;
+    font-weight: 700;
+    color: var(--gc-charcoal);
+  }
+  .stack-from .tool-price { color: var(--gc-mute); text-decoration: line-through; }
+  .stack-to .tool-price { color: var(--gc-red); }
+
+  .arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gc-red);
+    font-size: 32pt;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  /* ---------- Big savings banner ---------- */
+  .savings {
+    margin: 16px 0 0 0;
+    padding: 16px 20px;
+    border: 2px solid var(--gc-red);
+    border-radius: 8px;
+    background: linear-gradient(90deg, var(--gc-red-soft) 0%, white 60%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+  }
+  .savings-label {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--gc-red);
+    font-weight: 800;
+  }
+  .savings-amount {
+    font-size: 28pt;
+    font-weight: 800;
+    color: var(--gc-charcoal);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin: 4px 0 0 0;
+  }
+  .savings-detail {
+    font-size: 9pt;
+    color: var(--gc-slate);
+    margin-top: 4px;
+  }
+  .savings-pct {
+    background: var(--gc-charcoal);
+    color: white;
+    padding: 14px 18px;
+    border-radius: 6px;
+    text-align: center;
+    min-width: 110px;
+  }
+  .savings-pct-num {
+    font-size: 26pt;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .savings-pct-label {
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-top: 4px;
+    color: rgba(255,255,255,0.7);
+  }
+
+  /* ---------- Cost comparison ---------- */
+  .cost-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+    margin: 8px 0 18px 0;
+  }
+  .cost-table th, .cost-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--gc-line);
+  }
+  .cost-table th {
+    background: var(--gc-bg-warm);
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--gc-mute);
+    font-weight: 800;
+    border-bottom: 2px solid var(--gc-charcoal);
+  }
+  .cost-table td.num {
+    text-align: right;
+    font-family: "Helvetica Neue", monospace;
+    font-weight: 600;
+  }
+  .cost-table tr.subtotal td {
+    font-weight: 800;
+    background: var(--gc-bg-soft);
+  }
+  .cost-table tr.total td {
+    font-weight: 800;
+    background: var(--gc-charcoal);
+    color: white;
+    border-bottom: none;
+  }
+  .cost-table tr.total td.num { color: white; }
+
+  /* ---------- Tier comparison ---------- */
+  .tiers {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin: 8px 0 14px 0;
+  }
+  .tier {
+    border: 1px solid var(--gc-line);
+    border-radius: 6px;
+    padding: 12px 14px;
+    background: white;
+  }
+  .tier.recommended {
+    border: 2px solid var(--gc-red);
+    background: linear-gradient(180deg, var(--gc-red-soft) 0%, white 30%);
+    position: relative;
+  }
+  .tier.recommended::before {
+    content: "RECOMMENDED";
+    position: absolute;
+    top: -10px;
+    left: 12px;
+    background: var(--gc-red);
+    color: white;
+    font-size: 7.5pt;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+  .tier-name {
+    font-size: 11pt;
+    font-weight: 800;
+    color: var(--gc-charcoal);
+    margin: 0;
+  }
+  .tier.recommended .tier-name { color: var(--gc-red); }
+  .tier-price {
+    font-size: 16pt;
+    font-weight: 800;
+    margin: 4px 0 2px 0;
+    color: var(--gc-charcoal);
+    line-height: 1;
+  }
+  .tier-price-unit {
+    font-size: 8.5pt;
+    color: var(--gc-mute);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .tier ul {
+    margin: 0;
+    padding-left: 14px;
+    font-size: 8.75pt;
+    color: var(--gc-slate);
+    line-height: 1.5;
+  }
+  .tier ul li { margin-bottom: 2px; }
+
+  /* ---------- Notes / callouts ---------- */
+  .callout {
+    background: var(--gc-bg-warm);
+    border-left: 4px solid var(--gc-charcoal);
+    padding: 12px 16px;
+    font-size: 9.5pt;
+    margin-top: 12px;
+    color: var(--gc-charcoal);
+    line-height: 1.55;
+  }
+  .callout strong {
+    color: var(--gc-red);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 8.5pt;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .footnote {
+    font-size: 8pt;
+    color: var(--gc-mute);
+    margin-top: 10px;
+    line-height: 1.5;
+  }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    margin-top: 24px;
+    padding-top: 10px;
+    border-top: 2px solid var(--gc-charcoal);
+    font-size: 8pt;
+    color: var(--gc-mute);
+    display: flex;
+    justify-content: space-between;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .footer .gc-mark { color: var(--gc-red); font-weight: 800; }
+
+  @media print {
+    body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== PAGE 1: THE BIG PICTURE ===================== -->
+<section class="page">
+  <header class="brand">
+    <div class="brand-left">
+      <img class="brand-logo" src="goodman-classic-logo.jpg" alt="Goodman Classic">
+      <div class="brand-text">
+        <p class="brand-name">Goodman Classic</p>
+        <p class="brand-product">Inventory Hub</p>
+      </div>
+    </div>
+    <div class="brand-tag">
+      Migration &amp; Cost Plan<br>
+      <strong>Smarter tools. Lower cost.</strong>
+    </div>
+  </header>
+
+  <h1 class="section-title">What changes</h1>
+  <p class="section-sub">Lightspeed and QuoteMachine retire. The Inventory Hub absorbs quoting, builds, surplus, POs, invoices, and reports. Square takes over the in-store register.</p>
+
+  <div class="swap">
+    <div class="stack stack-from">
+      <div class="stack-label">Today</div>
+
+      <div class="tool">
+        <span class="tool-price">$1,027.20</span>
+        <div class="tool-name">Lightspeed Retail</div>
+        <div class="tool-role">POS &middot; Inventory &middot; Reporting</div>
+      </div>
+
+      <div class="tool">
+        <span class="tool-price">$253.50</span>
+        <div class="tool-name">QuoteMachine</div>
+        <div class="tool-role">Customer quotes &middot; Approvals</div>
+      </div>
+    </div>
+
+    <div class="arrow">&rarr;</div>
+
+    <div class="stack stack-to">
+      <div class="stack-label">Going forward</div>
+
+      <div class="tool">
+        <span class="tool-price">$500.00</span>
+        <div class="tool-name">GC Inventory Hub</div>
+        <div class="tool-role">Inventory &middot; Quotes &middot; Builds &middot; Surplus &middot; POs &middot; Invoices &middot; Reports</div>
+      </div>
+
+      <div class="tool">
+        <span class="tool-price">$98.00</span>
+        <div class="tool-name">Square for Retail (Plus)</div>
+        <div class="tool-role">In-store POS at both locations &middot; payment processing</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="savings">
+    <div>
+      <div class="savings-label">Monthly savings</div>
+      <div class="savings-amount">$682.70</div>
+      <div class="savings-detail">$1,280.70/mo today &nbsp;&rarr;&nbsp; $598.00/mo going forward &nbsp;&middot;&nbsp; <strong>$8,192.40 saved per year</strong></div>
+    </div>
+    <div class="savings-pct">
+      <div class="savings-pct-num">53%</div>
+      <div class="savings-pct-label">Lower</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Why this works</strong>
+    QuoteMachine duplicated work that the Hub now does natively (quotes, templates, surplus pricing, build linkage). Lightspeed's POS is one of several things it charged for — Square delivers the same register experience at a fraction of the cost, and the Hub keeps inventory, vendors, and reporting in one place across the warehouse and both stores.
+  </div>
+
+  <div class="footer">
+    <span><span class="gc-mark">GOODMAN CLASSIC</span> &middot; INVENTORY HUB</span>
+    <span>Page 1 of 2</span>
+  </div>
+</section>
+
+<!-- ===================== PAGE 2: COSTS + SQUARE TIERS ===================== -->
+<section class="page">
+  <header class="brand">
+    <div class="brand-left">
+      <img class="brand-logo" src="goodman-classic-logo.jpg" alt="Goodman Classic">
+      <div class="brand-text">
+        <p class="brand-name">Goodman Classic</p>
+        <p class="brand-product">Inventory Hub</p>
+      </div>
+    </div>
+    <div class="brand-tag">
+      The numbers<br>
+      <strong>Costs &amp; recommended tier</strong>
+    </div>
+  </header>
+
+  <h1 class="section-title">Cost breakdown</h1>
+  <p class="section-sub">All figures in USD per month. Current Lightspeed and QuoteMachine numbers reflect what Goodman Classic is paying today.</p>
+
+  <table class="cost-table">
+    <thead>
+      <tr><th>Software</th><th>Role</th><th style="text-align:right;">Monthly</th></tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="3" style="background:var(--gc-bg-soft); font-weight:800; font-size:8.5pt; text-transform:uppercase; letter-spacing:0.12em; color:var(--gc-mute);">Today</td></tr>
+      <tr><td>Lightspeed Retail</td><td>POS, inventory, reporting</td><td class="num">$1,027.20</td></tr>
+      <tr><td>QuoteMachine</td><td>Customer quotes &amp; approvals</td><td class="num">$253.50</td></tr>
+      <tr class="subtotal"><td>Subtotal — today</td><td></td><td class="num">$1,280.70</td></tr>
+
+      <tr><td colspan="3" style="background:var(--gc-bg-soft); font-weight:800; font-size:8.5pt; text-transform:uppercase; letter-spacing:0.12em; color:var(--gc-red);">Going forward</td></tr>
+      <tr><td>GC Inventory Hub</td><td>Inventory, quotes, builds, surplus, POs, invoices, reports</td><td class="num">$500.00</td></tr>
+      <tr><td>Square for Retail Plus</td><td>POS at 2 store locations ($49 &times; 2)</td><td class="num">$98.00</td></tr>
+      <tr class="subtotal"><td>Subtotal — going forward</td><td></td><td class="num">$598.00</td></tr>
+
+      <tr class="total"><td>Net monthly savings</td><td></td><td class="num">$682.70</td></tr>
+    </tbody>
+  </table>
+
+  <h1 class="section-title">Square Retail tiers</h1>
+  <p class="section-sub">Square charges per store location. The warehouse does not need a Square subscription — it has no register, and inventory there lives in the Hub.</p>
+
+  <div class="tiers">
+    <div class="tier">
+      <p class="tier-name">Free</p>
+      <div class="tier-price">$0</div>
+      <div class="tier-price-unit">per location / month</div>
+      <ul>
+        <li>Basic POS &amp; payments</li>
+        <li>Auto SKU creation</li>
+        <li>Discounts &amp; refunds</li>
+        <li>Basic sales reporting</li>
+        <li><span style="color:var(--gc-mute);">No advanced inventory or vendor management</span></li>
+      </ul>
+    </div>
+
+    <div class="tier recommended">
+      <p class="tier-name">Plus</p>
+      <div class="tier-price">$49</div>
+      <div class="tier-price-unit">per location / month</div>
+      <ul>
+        <li>Everything in Free</li>
+        <li><strong>Inventory management &amp; stock intake</strong></li>
+        <li><strong>Vendor &amp; purchase order management</strong></li>
+        <li>Cost of goods sold &amp; inventory reports</li>
+        <li>Lower in-person processing rate</li>
+        <li>30-day free trial</li>
+      </ul>
+    </div>
+
+    <div class="tier">
+      <p class="tier-name">Premium</p>
+      <div class="tier-price">$149</div>
+      <div class="tier-price-unit">per location / month</div>
+      <ul>
+        <li>Everything in Plus</li>
+        <li>Cross-location returns &amp; fulfilment</li>
+        <li>Transfer orders</li>
+        <li>24/7 phone support</li>
+        <li>Lowest in-person processing rate</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Recommended: Plus</strong>
+    Plus is the right fit for Goodman Classic today and for where the business is heading. It's the lowest tier that includes real inventory management and vendor / PO data — both essential so Square stays in lockstep with the Hub at the registers. Premium's headline upgrades (cross-location returns, transfer orders) are already handled inside the Inventory Hub, so paying $100 more per location each month would duplicate work the Hub does. Free is too thin for a 2-store retail operation. <strong style="color:var(--gc-red); display:inline; font-size:9.5pt; letter-spacing:0; text-transform:none;">2 stores &times; $49 = $98/month.</strong>
+  </div>
+
+  <p class="footnote">
+    Software prices shown are the published Square Retail subscription fees as of the date this document was generated. Square also charges per-transaction processing fees on card payments (paid only when a sale runs); these vary by tier and are not part of the monthly subscription cost above. Current Lightspeed and QuoteMachine figures are pulled from Goodman Classic's current invoices.
+  </p>
+
+  <div class="footer">
+    <span><span class="gc-mark">GOODMAN CLASSIC</span> &middot; INVENTORY HUB</span>
+    <span>Page 2 of 2</span>
+  </div>
+</section>
+
+</body>
+</html>
