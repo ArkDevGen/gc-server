@@ -260,7 +260,7 @@ def draw_header_and_footer(canvas, doc):
     # Header: right-aligned brand text + thin rule
     canvas.setFont("Helvetica-Bold", 9)
     canvas.setFillColor(GRAY_900)
-    canvas.drawRightString(PAGE_W - MARGIN, PAGE_H - 0.42 * inch, "GC INVENTORY HUB")
+    canvas.drawRightString(PAGE_W - MARGIN, PAGE_H - 0.42 * inch, "GC BUSINESS HUB")
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(GRAY_500)
     canvas.drawString(MARGIN, PAGE_H - 0.42 * inch, "Goodman Classic Buildings & Equipment")
