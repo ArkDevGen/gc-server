@@ -23,8 +23,6 @@ import { verifyOriginSecret } from './middleware/cloudflareSecret';
 const app = express();
 
 // Middleware
-// Middleware
-app.use(verifyOriginSecret);
 app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
 app.use(express.json());
 
