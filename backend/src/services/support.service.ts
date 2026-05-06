@@ -47,7 +47,7 @@ export async function sendSupportEmail(msg: SupportMessage): Promise<void> {
     <div style="font-family: -apple-system, Segoe UI, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background: #c8202c; color: white; padding: 16px 20px; border-radius: 8px 8px 0 0;">
         <h2 style="margin: 0; font-size: 18px;">New support request</h2>
-        <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">${escapeHtml(env.CLIENT_NAME)} &middot; Inventory Hub</p>
+        <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">${escapeHtml(env.CLIENT_NAME)} &middot; Business Hub</p>
       </div>
       <div style="border: 1px solid #e5e7eb; border-top: 0; padding: 20px; border-radius: 0 0 8px 8px;">
         <table style="width: 100%; font-size: 14px; color: #374151;">

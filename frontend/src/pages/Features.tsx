@@ -129,7 +129,7 @@ export default function Features() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Features</h1>
-      <p className="text-gray-500 mb-8">Everything GC Inventory Hub can do today — plus integrations coming soon and premium features available on request.</p>
+      <p className="text-gray-500 mb-8">Everything GC Business Hub can do today — plus integrations coming soon and premium features available on request.</p>
 
       {/* Active Features */}
       <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">

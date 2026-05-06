@@ -52,7 +52,7 @@ export default function AppLayout() {
             />
             <div className="min-w-0">
               <p className="text-xs text-gray-400 uppercase tracking-wide">Goodman Classic</p>
-              <h1 className="text-sm font-bold text-primary-400 truncate">Inventory Hub</h1>
+              <h1 className="text-sm font-bold text-primary-400 truncate">Business Hub</h1>
             </div>
           </div>
           <button

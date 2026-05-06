@@ -46,7 +46,7 @@ export default function Login() {
             className="w-56 mx-auto mb-4"
           />
           <div className="h-1 w-24 bg-primary-600 mx-auto mb-4 rounded-full" />
-          <h1 className="text-2xl font-bold text-gray-900">GC Inventory Hub</h1>
+          <h1 className="text-2xl font-bold text-gray-900">GC Business Hub</h1>
           <p className="text-gray-500 mt-1">Sign in to your account</p>
         </div>
 

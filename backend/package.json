@@ -1,7 +1,7 @@
 {
   "name": "gc-inventory-hub-backend",
   "version": "1.0.0",
-  "description": "GC Inventory Hub - Backend API",
+  "description": "GC Business Hub - Backend API",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

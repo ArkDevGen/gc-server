@@ -1,6 +1,6 @@
-# GC Inventory Hub
+# GC Business Hub
 
-Centralized inventory management system for an ag/construction company with 2 retail stores + warehouse.
+Centralized business operations system (inventory, quotes, builds, POs, invoices) for an ag/construction company with 2 retail stores + warehouse.
 
 ## Architecture
 

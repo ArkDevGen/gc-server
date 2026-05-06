@@ -1,4 +1,4 @@
-"""Generate a client-facing overview PDF for GC Inventory Hub."""
+"""Generate a client-facing overview PDF for GC Business Hub."""
 import os
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -298,7 +298,7 @@ divider.hAlign = "CENTER"
 story.append(divider)
 story.append(Spacer(1, 0.18 * inch))
 
-story.append(Paragraph("GC Inventory Hub", title_style))
+story.append(Paragraph("GC Business Hub", title_style))
 story.append(Paragraph("System Overview &amp; Implementation Checklist", subtitle_style))
 story.append(Spacer(1, 0.15 * inch))
 

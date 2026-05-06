@@ -60,7 +60,7 @@ if (env.NODE_ENV === 'production') {
 app.use(errorHandler);
 
 app.listen(env.PORT, () => {
-  console.log(`GC Inventory Hub API running on port ${env.PORT}`);
+  console.log(`GC Business Hub API running on port ${env.PORT}`);
   console.log(`Environment: ${env.NODE_ENV}`);
 });
 

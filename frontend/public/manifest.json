@@ -1,7 +1,7 @@
 {
-  "name": "GC Inventory Hub",
-  "short_name": "GC Inventory",
-  "description": "Centralized inventory management for GC",
+  "name": "GC Business Hub",
+  "short_name": "GC Business",
+  "description": "Centralized business operations for GC",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f9fafb",
