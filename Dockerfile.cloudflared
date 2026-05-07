@@ -1,0 +1,7 @@
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y curl && \
+    curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+    -o /usr/local/bin/cloudflared && \
+    chmod +x /usr/local/bin/cloudflared
+COPY config.yml /etc/cloudflared/config.yml
+CMD cloudflared tunnel --no-autoupdate --config /etc/cloudflared/config.yml run --token $CLOUDFLARE_TUNNEL_TOKEN
