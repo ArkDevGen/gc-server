@@ -1,0 +1,6 @@
+tunnel: gc-tunnel
+credentials-file: /etc/cloudflared/creds.json
+ingress:
+  - hostname: goodmanhub.us
+    service: http://gc-inventory-hub.onrender.com
+  - service: http_status:404
