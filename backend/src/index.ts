@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
@@ -22,7 +24,29 @@ import { verifyOriginSecret } from './middleware/cloudflareSecret';
 
 const app = express();
 
-// Middleware
+// ── Security headers (SOC 2) ──────────────────────────────────────
+app.use(helmet());
+
+// ── Rate limiting (SOC 2 — brute force protection) ────────────────
+// Tight limit on auth endpoints: 10 attempts per 15 min
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many login attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+// General API limit: 300 requests per 15 min per IP
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/', apiLimiter);
+
+// ── CORS ──────────────────────────────────────────────────────────
 app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
 app.use(express.json());
 
