@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import morgan from 'morgan';
 import path from 'path';
 import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
@@ -23,6 +24,9 @@ import supportRoutes from './routes/support.routes';
 import { verifyOriginSecret } from './middleware/cloudflareSecret';
 
 const app = express();
+
+// ── Request logging (SOC 2) ───────────────────────────────────────
+app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ── Security headers (SOC 2) ──────────────────────────────────────
 app.use(helmet());

@@ -17,9 +17,16 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const strongPassword = z.string()
+  .min(12, 'Password must be at least 12 characters')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+  .regex(/[0-9]/, 'Password must contain at least one number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character');
+
 const createUserSchema = z.object({
   username: z.string().min(3).max(50),
-  password: z.string().min(6),
+  password: strongPassword,
   display_name: z.string().min(1).max(100),
   email: z.string().email().optional(),
   role: z.nativeEnum(UserRole),
@@ -34,7 +41,7 @@ const updateUserSchema = z.object({
 
 const changePasswordSchema = z.object({
   old_password: z.string().min(1),
-  new_password: z.string().min(6),
+  new_password: strongPassword,
 });
 
 // POST /api/auth/login
