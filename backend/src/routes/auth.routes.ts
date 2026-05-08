@@ -8,6 +8,7 @@ import { UserRole } from '../config/constants';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { AuthRequest } from '../types';
+import { logAudit, getIp } from '../services/audit.service';
 
 const router = Router();
 
@@ -46,18 +47,23 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response,
     );
 
     if (result.rows.length === 0) {
+      logAudit({ action: 'LOGIN_FAILURE', username, ipAddress: getIp(req), metadata: { reason: 'user not found' } });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const user = result.rows[0];
     if (!user.is_active) {
+      logAudit({ action: 'LOGIN_FAILURE', userId: user.id, username, ipAddress: getIp(req), metadata: { reason: 'account disabled' } });
       return res.status(401).json({ error: 'Account is disabled' });
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
+      logAudit({ action: 'LOGIN_FAILURE', userId: user.id, username, ipAddress: getIp(req), metadata: { reason: 'wrong password' } });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    logAudit({ action: 'LOGIN_SUCCESS', userId: user.id, username: user.username, ipAddress: getIp(req) });
 
     const token = jwt.sign(
       { userId: user.id, username: user.username, role: user.role },
@@ -116,6 +122,7 @@ router.post(
       const hash = await bcrypt.hash(new_password, 10);
       await query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user!.userId]);
 
+      logAudit({ action: 'PASSWORD_CHANGED', userId: req.user!.userId, username: req.user!.username, ipAddress: getIp(req) });
       res.json({ message: 'Password changed successfully' });
     } catch (err) {
       next(err);
@@ -186,6 +193,7 @@ router.post(
         [username, hash, display_name, email || null, role]
       );
 
+      logAudit({ action: 'USER_CREATED', userId: req.user!.userId, username: req.user!.username, resourceType: 'user', resourceId: result.rows[0].id, ipAddress: getIp(req), metadata: { created_username: username, role } });
       res.status(201).json(result.rows[0]);
     } catch (err) {
       next(err);
@@ -229,6 +237,8 @@ router.patch(
         return res.status(404).json({ error: 'User not found' });
       }
 
+      const action = updates.is_active === false ? 'USER_DEACTIVATED' : 'USER_UPDATED';
+      logAudit({ action, userId: req.user!.userId, username: req.user!.username, resourceType: 'user', resourceId: id, ipAddress: getIp(req), metadata: updates });
       res.json(result.rows[0]);
     } catch (err) {
       next(err);
