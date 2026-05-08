@@ -183,7 +183,7 @@ router.post(
   requireAuth,
   requireRole(UserRole.ADMIN),
   validate(createUserSchema),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const { username, password, display_name, email, role } = req.body;
 
@@ -214,7 +214,7 @@ router.patch(
   requireAuth,
   requireRole(UserRole.ADMIN),
   validate(updateUserSchema),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id as string;
       const updates = req.body;
